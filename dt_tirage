@@ -1,0 +1,159 @@
+create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_TIRAGE
+lag = '3 days' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
+as
+
+
+WITH CTE_REF_PREMIER_ABO AS (
+SELECT tab.*
+,last_value(case when flag_ref_premier_abo = 1 then ref_abonnement end) ignore nulls over (partition by code_client order by no_parution rows between unbounded preceding and current row) as ref_premier_abo
+FROM(
+SELECT code_client,ref_abonnement,no_parution
+,case when coalesce(ref_ancien_abo,0) != 0 and coalesce(origine_reabonnement,'') != '' then 'REABO' else 'ABO' end as type_abo_reabo
+,row_number() over (partition by code_client, ref_abonnement order by no_parution) as rang
+,case when coalesce(type_abo_reabo,'') = 'ABO' and rang = 1 then 1 else 0 end as flag_ref_premier_abo
+FROM RAWDATA_PROD.BI_ABOWEB.F_HISTO_ABONNEMENTS_EN_ACTIVITE 
+
+--QUALIFY row_number() over (partition by code_client,no_parution order by ref_titre) = 1
+)tab
+
+)
+
+SELECT a.code_client
+    ,a.no_parution
+    ,cd.datpar as date_parution
+    ,a.ref_abonnement
+    ,a.ref_ancien_abo
+    ,rpa.ref_premier_abo
+    ,a.reabonnement01
+    ,rpa.type_abo_reabo
+    ,a.origine_reabonnement
+    ,c.origine_abo
+    ,c.duree_abonnement
+    ,a.paygrt
+    ,a.paygcpgrt
+    ,a.nb_exemplaires
+    ,a.date_debut
+    ,a.pns
+    ,a.pnl
+    ,a.dnl
+    ,a.dns
+    ,a.pu_ht
+    ,a.pu_ttc
+    ,a.pu_numero_ht
+    ,a.pu_numero_ttc
+    ,a.montant_ht
+    ,a.montant_ttc
+    ,rmp.groupe_mode_paiement
+    ,coalesce(mp.mode_paiement_corrige,g.mode_paiement) as mode_paiement
+    ,a.ref_facture
+    ,case when split_part(trim(c.code_tarif),'-',7) in ('COU', 'TTA', 'VIA', 'DYN', 'EDI', 'NOR', 'LIB', 'INF', 'CAR')
+          or split_part(trim(c.code_tarif),'-',9) in ('COU', 'TTA', 'VIA', 'DYN', 'EDI', 'NOR', 'LIB', 'INF', 'CAR')
+          or c.code_tarif in ('INT-FR-290-1-DL-0', 'INT-FR-230-1-DL-0') then true else false end as collecteur
+    ,case when split_part(trim(c.code_tarif),'-',7) = 'COU' or split_part(trim(c.code_tarif),'-',9) = 'COU' then true else false end as collaborateur
+    ,c.code_tarif
+    ,c.type_tarif
+    ,c.tarif_adl
+    ,c.tarif_preleve
+    ,c.typprellbl
+    ,c.desi_tarif
+    ,c.famille_tarif
+    ,c.type_duree
+    ,a.a_servir
+    ,a.fidelite
+    ,a.obsolete
+    ,date(a.creation) as date_creation
+    ,date(a.modification) as date_modification
+    ,case when coalesce(b.type_adresse,0) != 0 then 'GENERAL' else m.format_label end as mode_envoi
+    ,b.cp
+    ,b.ville
+    ,b.deptorpays
+    ,b.code_dept
+    ,b.nom_dept
+    ,b.nom_region
+    ,b.nom_pays
+    ,b.iso3166_1_a2
+    ,b.fm_dt_et
+    ,b.type_adresse
+    ,b.societe
+    ,b.npai
+    ,d.titre_abrege
+    ,i.datpar as date_parution_pns 
+    ,j.datpar as date_parution_dnl 
+    ,k.datpar as date_parution_dns
+    ,e.cs_value
+    ,sr.lib_age_prenom
+    ,sr.lib_code_ecole
+    ,sr.lib_code_genre_prenom
+    ,sr.lib_environnement_social
+    ,sr.lib_score
+    ,sr.lib_source
+    ,sr.lib_taille_unite_urbaine
+    ,sr.lib_type_commune
+    ,sr.lib_type_habitat
+    ,sr.lib_type_partenaire
+    ,m.format_label
+    ,m.lib_version
+    ,a.code_relance
+    ,pr.famille as famille_relance
+    ,pr.groupe_famille as groupe_famille_relance
+    ,roa.origine as origine_ref_origine_abonnement
+    ,roa.lib_origine as lib_origine_ref_origine_abonnement
+    ,roa.qte_envoi as qte_envoi_ref_origine_abonnement
+    ,roa.type_origine as type_origine_ref_origine_abonnement
+    ,roa.rattachement as rattachement_ref_origine_abonnement
+    ,roa.code_campagne as code_campagne_ref_origine_abonnement
+    ,roa.campagne as campagne_ref_origine_abonnement
+    ,roa.lot as lot_ref_origine_abonnement
+    ,roa.libelle_lot as libelle_lot_ref_origine_abonnement
+    ,roa.fichier as fichier_ref_origine_abonnement
+    ,roa.segment as segment_ref_origine_abonnement
+    ,roa.numero_segment as numero_segment_ref_origine_abonnement
+    ,roa.canal as canal_ref_origine_abonnement
+    ,roa.s_canal as s_canal_ref_origine_abonnement
+    ,roa.groupe_canaux as groupe_canaux_origine_abonnement			
+    ,roa2.origine as origine_ref_origine_reabonnement
+    ,roa2.lib_origine as lib_origine_ref_origine_reabonnement
+    ,roa2.qte_envoi as qte_envoi_ref_origine_reabonnement
+    ,roa2.type_origine as type_origine_ref_origine_reabonnement
+    ,roa2.rattachement as rattachement_ref_origine_reabonnement
+    ,roa2.code_campagne as code_campagne_ref_origine_reabonnement
+    ,roa2.campagne as campagne_ref_origine_reabonnement
+    ,roa2.lot as lot_ref_origine_reabonnement
+    ,roa2.libelle_lot as libelle_lot_ref_origine_reabonnement
+    ,roa2.fichier as fichier_ref_origine_reabonnement
+    ,roa2.segment as segment_ref_origine_reabonnement
+    ,roa2.numero_segment as numero_segment_ref_origine_reabonnement
+    ,roa2.canal as canal_ref_origine_reabonnement
+    ,roa2.s_canal as s_canal_ref_origine_reabonnement
+    ,roa2.groupe_canaux as groupe_canaux_origine_reabonnement
+    ,coalesce(mp.abo_paye_ind,0) as abo_paye_ind
+    ,coalesce(mp.abo_point_com,0) as abo_point_com
+    ,coalesce(mp.abo_grande_ecole,0) as abo_grande_ecole
+    ,coalesce(mp.abo_partenaires,0) as abo_partenaires
+    ,coalesce(mp.abo_grace_copie,0) as abo_grace_copie
+    ,coalesce(mp.abo_gratuit,0) as abo_gratuit
+    ,current_timestamp as ts_chargement
+    
+--select count(*)
+FROM RAWDATA_PROD.BI_ABOWEB.F_HISTO_ABONNEMENTS_EN_ACTIVITE a 
+INNER JOIN RAWDATA_PROD.BI_ABOWEB.D_HISTO_ADRESSESLIVREES b on a.code_client = b.code_client and a.dnl = b.no_parution and a.ref_titre = b.ref_titre_livre 
+INNER JOIN RAWDATA_PROD.BI_ABOWEB.T_TITRES d on d.ref_titre = a.ref_titre
+INNER JOIN RAWDATA_PROD.BI_ABOWEB.D_CALENDRIERSPNS i on a.keypns = i.keypns
+INNER JOIN RAWDATA_PROD.BI_ABOWEB.D_CALENDRIERSDNL j on a.keydnl = j.keydnl
+INNER JOIN RAWDATA_PROD.BI_ABOWEB.D_CALENDRIERSDNS k on a.keydns = k.keydns
+INNER JOIN RAWDATA_PROD.BI_ABOWEB.D_CALENDRIERSDNS cd on cd.no_parution = a.no_parution and right(cd.keydns,2)='01' 
+INNER JOIN DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_PAR_MODES_PAIEMENT_CORRIGES mp on mp.code_client = a.code_client and mp.ref_abonnement = a.ref_abonnement and a.no_parution = mp.no_parution
+INNER JOIN CTE_REF_PREMIER_ABO rpa on a.code_client = rpa.code_client and a.ref_abonnement = rpa.ref_abonnement and a.no_parution = rpa.no_parution
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB.D_CANALPAIEMENT g on g.ref_abonnement = a.ref_abonnement
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB_TABLEAU.REF_REGROUPEMENT_MODE_PAIEMENT rmp on rmp.mode_paiement = g.mode_paiement
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB_TABLEAU.REF_POLITIQUE_RELANCE pr on pr.code_relance = a.code_relance
+LEFT JOIN DATATABLES_PROD.PATRIMOINE_CLASSE1.CLT_SCORE_RHAPSODY sr on sr.code_client = a.code_client
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB.D_VERSIONSFORMATS m on m.ref_versionformat = a.ref_versionformat
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB.D_REFERENCESORIGINE e on a.cs10 = e.cs_value
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB.D_TARIFSETFORMULES c on a.ref_groupe = c.ref_tarif
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB_TABLEAU.REF_ORIGINE_ABONNEMENT roa on upper(e.cs_value) = roa.origine
+LEFT JOIN RAWDATA_PROD.BI_ABOWEB_TABLEAU.REF_ORIGINE_ABONNEMENT roa2 on upper(a.origine_reabonnement) = roa2.origine
+
+
+WHERE
+    a.no_parution = a.DNL and (a.ref_titre = 1 or (a.ref_titre = 2 and c.titre_maitre = d.titre_abrege and c.type_abonnement = 'NUM')) ;
