@@ -182,7 +182,8 @@ select
      t.*
     ,row_number() over (partition by code_client,ref_abonnement order by no_parution) as rang_abo
     ,case when type_abo_reabo = 'ABO' then row_number() over (partition by code_client,type_abo_reabo order by no_parution) end as rang_cli
-    ,case   when t.type_abo_reabo = 'ABO' and rang_abo = 1 then 'ACQUISITION'
+    ,case   when t.type_abo_reabo = 'ABO' and rang_abo = 1 and rang_cli = 1 and ref_ancien_abo is not null then 'STOCK'
+            when t.type_abo_reabo = 'ABO' and rang_abo = 1 then 'ACQUISITION'
             when t.type_abo_reabo = 'REABO'and rang_abo = 1 then 'RENOUVELLEMENT'
             else 'STOCK' end as categorie
     ,case when categorie = 'ACQUISITION' then t.pns - lag(t.dns) over (partition by t.code_client order by t.no_parution) end as diff_par_avec_precedent_dns
