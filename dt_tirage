@@ -9,7 +9,7 @@ as
     
      a.code_client
     ,a.no_parution
-    ,i.datpar as date_parution
+    ,cal.datpar as date_parution
     ,a.ref_abonnement
     ,a.ref_ancien_abo
     ,a.reabonnement01
@@ -137,6 +137,7 @@ as
     inner join rawdata_prod.bi_aboweb.d_calendriersdnl j on a.keydnl = j.keydnl 
     inner join rawdata_prod.bi_aboweb.d_calendriersdns k on a.keydns = k.keydns 
     inner join rawdata_prod.bi_aboweb.d_calendrierspns l on l.keypns = concat(a.pnl, '01')  
+    inner join rawdata_prod.bi_aboweb.d_calendrierspns cal on cal.no_parution = a.no_parution and cal.keypns ilike '%01'
     inner join rawdata_prod.bi_aboweb.t_param_cs_1 pa on pa.libelle_cs = 'Age Prénom'
     inner join rawdata_prod.bi_aboweb.t_param_cs_1 pb on pb.libelle_cs = 'Code Ecole'
     inner join rawdata_prod.bi_aboweb.t_param_cs_1 pc on pc.libelle_cs = 'Code Genre Prénom'
