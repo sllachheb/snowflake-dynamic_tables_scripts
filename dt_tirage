@@ -1,7 +1,132 @@
-create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_TIRAGE
-lag = 'DOWNSTREAM'
-warehouse = TRANSFORMATION_XS_WH
-as
+create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_TIRAGE(
+	CODE_CLIENT,
+	NO_PARUTION,
+	DATE_PARUTION,
+	REF_ABONNEMENT,
+	REF_ANCIEN_ABO,
+	REABONNEMENT01,
+	TYPE_ABO_REABO,
+	ORIGINE_ABO,
+	DUREE_ABONNEMENT,
+	PAYGRT,
+	PAYGCPGRT,
+	NB_EXEMPLAIRES,
+	DATE_DEBUT,
+	PNS,
+	PNL,
+	DNL,
+	DNS,
+	PU_HT,
+	PU_TTC,
+	PU_NUMERO_HT,
+	PU_NUMERO_TTC,
+	MONTANT_HT,
+	MONTANT_TTC,
+	GROUPE_MODE_PAIEMENT,
+	GROUPE_MODE_PAIEMENT_TABLEAU,
+	MODE_PAIEMENT,
+	REF_FACTURE,
+	COLLECTEUR,
+	COLLABORATEUR,
+	CODE_TARIF,
+	TYPE_TARIF,
+	TARIF_ADL,
+	TARIF_PRELEVE,
+	TYPPRELLBL,
+	DESI_TARIF,
+	FAMILLE_TARIF,
+	TYPE_DUREE,
+	A_SERVIR,
+	FIDELITE,
+	OBSOLETE,
+	DATE_CREATION,
+	DATE_MODIFICATION,
+	MODE_ENVOI,
+	CP,
+	VILLE,
+	DEPTORPAYS,
+	CODE_DEPT,
+	NOM_DEPT,
+	NOM_REGION,
+	NOM_PAYS,
+	ISO3166_1_A2,
+	FM_DT_ET,
+	TYPE_ADRESSE,
+	SOCIETE,
+	NPAI,
+	TITRE_ABREGE,
+	DATE_PARUTION_PNS,
+	DATE_PARUTION_DNL,
+	DATE_PARUTION_DNS,
+	CS_VALUE,
+	LIB_AGE_PRENOM,
+	LIB_CODE_ECOLE,
+	LIB_CODE_GENRE_PRENOM,
+	LIB_ENVIRONNEMENT_SOCIAL,
+	LIB_SCORE,
+	LIB_SOURCE,
+	LIB_TAILLE_UNITE_URBAINE,
+	LIB_TYPE_COMMUNE,
+	LIB_TYPE_HABITAT,
+	LIB_TYPE_PARTENAIRE,
+	FORMAT_LABEL,
+	LIB_VERSION,
+	CODE_RELANCE,
+	FAMILLE_RELANCE,
+	GROUPE_FAMILLE_RELANCE,
+	ORIGINE_ABONNEMENT,
+	LIB_ORIGINE_ABONNEMENT,
+	QTE_ENVOI_ORIGINE_ABONNEMENT,
+	TYPE_ORIGINE_ABONNEMENT,
+	RATTACHEMENT_ORIGINE_ABONNEMENT,
+	CODE_CAMPAGNE_ORIGINE_ABONNEMENT,
+	CAMPAGNE_ORIGINE_ABONNEMENT,
+	LOT_ORIGINE_ABONNEMENT,
+	LIBELLE_LOT_ORIGINE_ABONNEMENT,
+	FICHIER_ORIGINE_ABONNEMENT,
+	SEGMENT_ORIGINE_ABONNEMENT,
+	SEGMENT_NUMERO_ORIGINE_ABONNEMENT,
+	CANAL_ORIGINE_ABONNEMENT,
+	S_CANAL_ORIGINE_ABONNEMENT,
+	GROUPE_CANAL_ORIGINE_ABONNEMENT,
+	GROUPE_CANAL_MARKETING_ORIGINE_ABONNEMENT,
+	ORIGINE_REABONNEMENT,
+	LIB_ORIGINE_REABONNEMENT,
+	QTE_ENVOI_ORIGINE_REABONNEMENT,
+	TYPE_ORIGINE_REABONNEMENT,
+	RATTACHEMENT_ORIGINE_REABONNEMENT,
+	CODE_CAMPAGNE_ORIGINE_REABONNEMENT,
+	CAMPAGNE_ORIGINE_REABONNEMENT,
+	LOT_ORIGINE_REABONNEMENT,
+	LIBELLE_LOT_ORIGINE_REABONNEMENT,
+	FICHIER_ORIGINE_REABONNEMENT,
+	SEGMENT_ORIGINE_REABONNEMENT,
+	SEGMENT_NUMERO_ORIGINE_REABONNEMENT,
+	CANAL_ORIGINE_REABONNEMENT,
+	S_CANAL_ORIGINE_REABONNEMENT,
+	GROUPE_CANAL_ORIGINE_REABONNEMENT,
+	GROUPE_CANAL_MARKETING_ORIGINE_REABONNEMENT,
+	FORMULE_TYPE_ABONNEMENT,
+	FORMULE_ZONE_GEOGRAPHIQUE,
+	FORMULE_MONTANT_ABONNEMENT,
+	FORMULE_DUREE_ABONNEMENT,
+	FORMULE_TYPE_DUREE,
+	FORMULE_MODE_PAIEMENT,
+	ABO_PAYE_IND,
+	ABO_GRANDE_ECOLE,
+	ABO_PARTENAIRES,
+	ABO_POINT_COM,
+	ABO_GRATUIT,
+	ABO_GRACE_COPIE,
+	BUDGET_RECRUTEMENT_PRINT_INTEGRAL,
+	BUDGET_RECRUTEMENT_NUMERIQUE,
+	RANG_ABO,
+	RANG_CLI,
+	CATEGORIE,
+	DIFF_PAR_AVEC_PRECEDENT_DNS,
+	REF_PREMIER_ABO
+) lag = 'DOWNSTREAM' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
+ as
 
     with tirage_sans_ref_premier_abo as (
     
@@ -14,7 +139,6 @@ as
     ,a.ref_ancien_abo
     ,a.reabonnement01
     ,case when coalesce(a.ref_ancien_abo,0) != 0 and coalesce(a.origine_reabonnement,'') != '' then 'REABO' else 'ABO' end as type_abo_reabo
-    ,a.origine_reabonnement
     ,c.origine_abo
     ,c.duree_abonnement
     ,a.paygrt
@@ -85,36 +209,38 @@ as
     ,a.code_relance
     ,pr.famille as famille_relance
     ,pr.groupe_famille as groupe_famille_relance
-    ,roa.origine as origine_ref_origine_abonnement
-    ,roa.lib_origine as lib_origine_ref_origine_abonnement
-    ,roa.qte_envoi as qte_envoi_ref_origine_abonnement
-    ,roa.type_origine as type_origine_ref_origine_abonnement
-    ,roa.rattachement as rattachement_ref_origine_abonnement
-    ,roa.code_campagne as code_campagne_ref_origine_abonnement
-    ,roa.campagne as campagne_ref_origine_abonnement
-    ,roa.lot as lot_ref_origine_abonnement
-    ,roa.libelle_lot as libelle_lot_ref_origine_abonnement
-    ,roa.fichier as fichier_ref_origine_abonnement
-    ,roa.segment as segment_ref_origine_abonnement
-    ,roa.numero_segment as numero_segment_ref_origine_abonnement
-    ,roa.canal as canal_ref_origine_abonnement
-    ,roa.s_canal as s_canal_ref_origine_abonnement
-    ,roa.groupe_canaux as groupe_canaux_origine_abonnement			
-    ,roa2.origine as origine_ref_origine_reabonnement
-    ,roa2.lib_origine as lib_origine_ref_origine_reabonnement
-    ,roa2.qte_envoi as qte_envoi_ref_origine_reabonnement
-    ,roa2.type_origine as type_origine_ref_origine_reabonnement
-    ,roa2.rattachement as rattachement_ref_origine_reabonnement
-    ,roa2.code_campagne as code_campagne_ref_origine_reabonnement
-    ,roa2.campagne as campagne_ref_origine_reabonnement
-    ,roa2.lot as lot_ref_origine_reabonnement
-    ,roa2.libelle_lot as libelle_lot_ref_origine_reabonnement
-    ,roa2.fichier as fichier_ref_origine_reabonnement
-    ,roa2.segment as segment_ref_origine_reabonnement
-    ,roa2.numero_segment as numero_segment_ref_origine_reabonnement
-    ,roa2.canal as canal_ref_origine_reabonnement
-    ,roa2.s_canal as s_canal_ref_origine_reabonnement
-    ,roa2.groupe_canaux as groupe_canaux_origine_reabonnement
+    ,roa.origine as origine_abonnement
+    ,roa.lib_origine as lib_origine_abonnement
+    ,roa.qte_envoi as qte_envoi_origine_abonnement
+    ,roa.type_origine as type_origine_abonnement
+    ,roa.rattachement as rattachement_origine_abonnement
+    ,roa.code_campagne as code_campagne_origine_abonnement
+    ,roa.campagne as campagne_origine_abonnement
+    ,roa.lot as lot_origine_abonnement
+    ,roa.libelle_lot as libelle_lot_origine_abonnement
+    ,roa.fichier as fichier_origine_abonnement
+    ,roa.segment as segment_origine_abonnement
+    ,roa.segment_numero as segment_numero_origine_abonnement
+    ,roa.canal as canal_origine_abonnement
+    ,roa.s_canal as s_canal_origine_abonnement
+    ,roa.groupe_canal as groupe_canal_origine_abonnement
+    ,roa.groupe_canal_marketing as groupe_canal_marketing_origine_abonnement
+    ,roa2.origine as origine_reabonnement
+    ,roa2.lib_origine as lib_origine_reabonnement
+    ,roa2.qte_envoi as qte_envoi_origine_reabonnement
+    ,roa2.type_origine as type_origine_reabonnement
+    ,roa2.rattachement as rattachement_origine_reabonnement
+    ,roa2.code_campagne as code_campagne_origine_reabonnement
+    ,roa2.campagne as campagne_origine_reabonnement
+    ,roa2.lot as lot_origine_reabonnement
+    ,roa2.libelle_lot as libelle_lot_origine_reabonnement
+    ,roa2.fichier as fichier_origine_reabonnement
+    ,roa2.segment as segment_origine_reabonnement
+    ,roa2.segment_numero as segment_numero_origine_reabonnement
+    ,roa2.canal as canal_origine_reabonnement
+    ,roa2.s_canal as s_canal_origine_reabonnement
+    ,roa2.groupe_canal as groupe_canal_origine_reabonnement
+    ,roa2.groupe_canal_marketing as groupe_canal_marketing_origine_reabonnement
     
     ,split_part(trim(code_tarif), '-', 1) as formule_type_abonnement
     ,split_part(split_part(trim(code_tarif), '-', 2), '-', -1) as formule_zone_geographique
@@ -122,12 +248,14 @@ as
     ,split_part(split_part(trim(code_tarif), '-', 4), '-', -1) as formule_duree_abonnement
     ,split_part(split_part(trim(code_tarif), '-', 5), '-', -1) as formule_type_duree
     ,split_part(split_part(trim(code_tarif), '-', 6), '-', -1) as formule_mode_paiement
-    ,case when coalesce(formule_montant_abonnement,0) != 0 and not(upper(code_tarif) like any ('%PAR%','%TG7%')) and not (g.mode_paiement in ('POINT DEV','PARTENAIRES','DC','POINT COM') or g.mode_paiement is null) then 1 else 0 end as abo_paye_ind
+    ,CASE WHEN coalesce(formule_montant_abonnement, 0) != 0 AND NOT (UPPER(c.code_tarif) LIKE ANY ('%PAR%', '%TG7%')) AND (g.mode_paiement IS NULL OR NOT g.mode_paiement IN ('POINT DEV','PARTENAIRES', 'DC', 'POINT COM')) THEN 1 ELSE 0 END AS abo_paye_ind
     ,case when g.mode_paiement = 'POINT DEV' then 1 else 0 end abo_grande_ecole
     ,case when coalesce(g.mode_paiement,'') in ('PARTENAIRES','DC') or upper(code_tarif) like any ('%PAR%','%TG7%') then 1 else 0 end as abo_partenaires
     ,case when coalesce(g.mode_paiement,'') = 'POINT COM' or coalesce(lib_version,'') = 'I80' then 1 else 0 end as abo_point_com
     ,case when formule_montant_abonnement = 0 and formule_montant_abonnement is not null then 1 else 0 end as abo_gratuit
     ,case when coalesce(upper(paygcpgrt),'') = 'GRÂCE COPIE' then 1 else 0 end as abo_grace_copie 
+    ,rba.budget_recrutement_print_integral
+    ,rba.budget_recrutement_numerique
     
     from rawdata_prod.bi_aboweb.f_histo_abonnements_en_activite a 
     
@@ -136,7 +264,6 @@ as
     inner join rawdata_prod.bi_aboweb.d_calendrierspns i on a.keypns = i.keypns 
     inner join rawdata_prod.bi_aboweb.d_calendriersdnl j on a.keydnl = j.keydnl 
     inner join rawdata_prod.bi_aboweb.d_calendriersdns k on a.keydns = k.keydns 
-    inner join rawdata_prod.bi_aboweb.d_calendrierspns l on l.keypns = concat(a.pnl, '01')  
     inner join rawdata_prod.bi_aboweb.d_calendrierspns cal on cal.no_parution = a.no_parution and cal.keypns ilike '%01'
     inner join rawdata_prod.bi_aboweb.t_param_cs_1 pa on pa.libelle_cs = 'Age Prénom'
     inner join rawdata_prod.bi_aboweb.t_param_cs_1 pb on pb.libelle_cs = 'Code Ecole'
@@ -166,13 +293,15 @@ as
     left join rawdata_prod.bi_aboweb.d_versionsformats m on m.ref_versionformat = a.ref_versionformat 
     
     left join rawdata_prod.bi_aboweb_tableau.ref_politique_relance pr on pr.code_relance = a.code_relance
-    left join rawdata_prod.bi_aboweb_tableau.ref_origine_abonnement roa on upper(e.cs_value) = roa.origine
-    left join rawdata_prod.bi_aboweb_tableau.ref_origine_abonnement roa2 on upper(a.origine_reabonnement) = roa2.origine
+    left join rawdata_prod.referentiel.ref_origine_abonnement roa on upper(e.cs_value) = roa.origine
+    left join rawdata_prod.referentiel.ref_origine_abonnement roa2 on upper(a.origine_reabonnement) = roa2.origine
     left join rawdata_prod.bi_aboweb_tableau.ref_regroupement_mode_paiement rmp on rmp.mode_paiement = g.mode_paiement
+    left join rawdata_prod.referentiel.ref_budget_abo rba on rba.no_parution = a.no_parution
     
     where
         (a.ref_titre = 1 or (a.ref_titre = 2 and c.titre_maitre = d.titre_abrege and c.type_abonnement = 'NUM')) 
-    qualify row_number() over (partition by a.code_client, a.no_parution order by a.ref_titre) = 1
+       -- and a.code_client in(39016704) --and a.no_parution = 2689 -- ASUPPRIMER
+    qualify row_number() over (partition by a.code_client, a.no_parution order by a.pns desc) = 1
     )    
 
 select t_final.*
@@ -190,4 +319,4 @@ select
     ,case when categorie = 'ACQUISITION' then t.pns - lag(t.dns) over (partition by t.code_client order by t.no_parution) end as diff_par_avec_precedent_dns
     
 from tirage_sans_ref_premier_abo t
-)t_final
+)t_final;
