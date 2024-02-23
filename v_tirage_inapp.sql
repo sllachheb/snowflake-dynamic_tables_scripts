@@ -11,7 +11,8 @@ create or replace view DATATABLES_PROD.PATRIMOINE_CLASSE1.V_TIRAGE_INAPP(
 	ABO_PAYE_IND,
 	TYPE_ABO_SIMPLIFIE,
 	CA_HT,
-	PU_NUMERO_HT
+	PU_NUMERO_HT,
+	TYPE_DUREE_SIMPLIFIE
 ) as 
 with inapp_inter as (
 
@@ -22,6 +23,7 @@ with inapp_inter as (
     ,round(estimation_ca_ht - ca_ht_stock,3) as ca_ht_acquisition
     ,1 as abo_paye_ind
     ,'NUM' as type_abo_simplifie
+    ,'DL' as type_duree_simplifie
     ,c.cal_au as date_parution
     ,dateadd(week,1,date_parution) - 1 as date_fin_semaine
     ,year(c.cal_au) as annee
@@ -50,6 +52,7 @@ select
     ,type_abo_simplifie
     ,ca_ht_acquisition as ca_ht
     ,pu_numero_ht
+    ,type_duree_simplifie
 from inapp_inter
 
 union all
@@ -70,6 +73,7 @@ select
     ,type_abo_simplifie
     ,ca_ht_stock as ca_ht
     ,pu_numero_ht
+    ,type_duree_simplifie
 from inapp_inter
 
 
@@ -90,6 +94,7 @@ select
     ,type_abo_simplifie
     ,0 as ca_ht
     ,pu_numero_ht
+    ,type_duree_simplifie
 from inapp_inter
 where 
     source = 'APPLE'
