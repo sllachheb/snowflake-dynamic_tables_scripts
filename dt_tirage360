@@ -1,0 +1,412 @@
+create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_TIRAGE360(
+	CODE_CLIENT,
+	REF_ABONNEMENT,
+	REF_ANCIEN_ABO,
+	REF_PREMIER_ABO,
+	TYPE_ABO_REABO,
+	NO_PARUTION,
+	TYPE_DUREE,
+	DUREE_ABONNEMENT,
+	FIDELITE,
+	CS_VALUE,
+	PNL,
+	PNS,
+	DNS,
+	DATE_PARUTION,
+	DATE_DEBUT_SEMAINE,
+	DATE_FIN_SEMAINE,
+	DATE_PARUTION_PNS,
+	DATE_PARUTION_DNS,
+	DATE_PARUTION_DNL,
+	ANNEE,
+	TITRE_ABREGE,
+	NB_EXEMPLAIRES,
+	A_SERVIR,
+	CA_HT,
+	PU_NUMERO_HT,
+	PU_NUMERO_TTC,
+	MONTANT_HT,
+	MONTANT_TTC,
+	COLLABORATEUR,
+	COLLECTEUR,
+	CODE_TARIF,
+	FAMILLE_TARIF,
+	GROUPE_MODE_PAIEMENT,
+	GROUPE_MODE_PAIEMENT_TABLEAU,
+	MODE_PAIEMENT,
+	CP,
+	CODE_DEPT,
+	NOM_REGION,
+	NOM_PAYS,
+	FM_DT_ET,
+	ABO_PAYE_IND,
+	ABO_GRACE_COPIE,
+	ABO_POINT_COM,
+	ABO_GRANDE_ECOLE,
+	ABO_PARTENAIRES,
+	ABO_GRATUIT,
+	CODE_RELANCE,
+	FAMILLE_RELANCE,
+	GROUPE_FAMILLE_RELANCE,
+	ORIGINE_ABONNEMENT,
+	CANAL_ORIGINE_ABONNEMENT,
+	S_CANAL_ORIGINE_ABONNEMENT,
+	GROUPE_CANAL_ORIGINE_ABONNEMENT,
+	GROUPE_CANAL_MARKETING_ORIGINE_ABONNEMENT,
+	ORIGINE_REABONNEMENT,
+	CANAL_ORIGINE_REABONNEMENT,
+	S_CANAL_ORIGINE_REABONNEMENT,
+	GROUPE_CANAL_ORIGINE_REABONNEMENT,
+	GROUPE_CANAL_MARKETING_ORIGINE_REABONNEMENT,
+	PREV_TITRE_ABREGE,
+	PREV_TYPE_DUREE,
+	TYPE_ABO_SIMPLIFIE,
+	PREV_TYPE_ABO_SIMPLIFIE,
+	TYPE_DUREE_SIMPLIFIE,
+	PREV_TYPE_DUREE_SIMPLIFIE,
+	PREV_CODE_TARIF,
+	PREV_PNS,
+	PREV_DNS,
+	PREV_DATE_PARUTION_PNS,
+	PREV_DATE_PARUTION_DNS,
+	PREV_FAMILLE_TARIF,
+	PREV_MONTANT_HT,
+	PREV_MODE_PAIEMENT,
+	PREV_GROUPE_MODE_PAIEMENT_TABLEAU,
+	PREV_GROUPE_MODE_PAIEMENT,
+	DIFF_PAR_AVEC_PRECEDENT_DNS,
+	CATEGORIE,
+	SOUS_CATEGORIE,
+	PREM_NB_EXEMPLAIRES,
+	PREM_CODE_TARIF,
+	PREM_PNS,
+	PREM_DATE_PARUTION,
+	PREM_DATE_PARUTION_PNS,
+	PREM_TITRE_ABREGE,
+	PREM_TYPE_ABO_SIMPLIFIE,
+	PREM_FAMILLE_TARIF,
+	PREM_TYPE_DUREE,
+	PREM_TYPE_DUREE_SIMPLIFIEE,
+	PREM_DUREE_ABONNEMENT,
+	PREM_A_SERVIR,
+	PREM_MONTANT_HT,
+	PREM_ABO_PAYE_IND,
+	PREM_ABO_POINT_COM,
+	PREM_ABO_GRANDE_ECOLE,
+	PREM_ABO_PARTENAIRES,
+	PREM_ABO_GRACE_COPIE,
+	PREM_ABO_GRATUIT,
+	PREM_MODE_PAIEMENT,
+	PREM_GROUPE_MODE_PAIEMENT_TABLEAU,
+	PREM_GROUPE_MODE_PAIEMENT,
+	BUDGET_RECRUTEMENT_PRINT_INTEGRAL,
+	BUDGET_RECRUTEMENT_NUMERIQUE,
+	SOURCE,
+	FLG_INAPP
+) lag = '2 days' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
+ as
+WITH pre_tirage360 
+
+AS (
+--select count(*) from(
+    SELECT
+        t1.code_client
+        ,t1.no_parution
+        ,t1.ref_abonnement
+        ,t1.ref_ancien_abo
+        ,t1.ref_premier_abo
+        ,min(t2.pns) as prev_pns
+        ,min(t2.dns) as prev_dns
+        ,min(t2.date_parution_pns) as prev_date_parution_pns
+        ,min(t2.date_parution_dns) as prev_date_parution_dns
+        ,min(t2.montant_ht) as prev_montant_ht
+        ,min(t2.code_tarif) as prev_code_tarif
+        ,min(t2.famille_tarif) as prev_famille_tarif
+        ,min(t2.mode_paiement) as prev_mode_paiement
+        ,min(t2.groupe_mode_paiement) as prev_groupe_mode_paiement
+        ,min(t2.groupe_mode_paiement_tableau) as prev_groupe_mode_paiement_tableau
+        ,min(t2.titre_abrege) as prev_titre_abrege
+        ,min(t2.type_duree) as prev_type_duree
+        ,min(t2.duree_abonnement) as prev_duree_abonnement
+        ,min(t2.nb_exemplaires) as prev_nb_exemplaires
+        ,min(t2.a_servir) as prev_a_servir
+        ,min(t2.abo_paye_ind) as prev_abo_paye_ind
+        ,min(t2.abo_grace_copie) as prev_abo_grace_copie
+        ,min(t2.abo_point_com) as prev_abo_point_com
+        ,min(t2.abo_partenaires) as prev_abo_partenaires
+        ,min(t2.abo_gratuit) as prev_abo_gratuit
+        ,min(t3.pns) as prem_pns
+        ,min(t3.dns) as prem_dns
+        ,min(t3.date_parution) as prem_date_parution -- à tester
+        ,min(t3.date_parution_pns) as prem_date_parution_pns
+        ,min(t3.date_parution_dns) as prem_date_parution_dns
+        ,min(t3.montant_ht) as prem_montant_ht
+        ,min(t3.code_tarif) as prem_code_tarif
+        ,min(t3.famille_tarif) as prem_famille_tarif
+        ,min(t3.mode_paiement) as prem_mode_paiement
+        ,min(t3.groupe_mode_paiement) as prem_groupe_mode_paiement
+        ,min(t3.groupe_mode_paiement_tableau) as prem_groupe_mode_paiement_tableau
+        ,min(t3.titre_abrege) as prem_titre_abrege
+        ,min(t3.type_duree) as prem_type_duree
+        ,min(t3.duree_abonnement) as prem_duree_abonnement
+        ,min(t3.nb_exemplaires) as prem_nb_exemplaires
+        ,min(t3.a_servir) as prem_a_servir
+        ,max(t3.abo_paye_ind) as prem_abo_paye_ind
+        ,max(t3.abo_grace_copie) as prem_abo_grace_copie
+        ,max(t3.abo_grande_ecole) as prem_abo_grande_ecole
+        ,max(t3.abo_point_com) as prem_abo_point_com
+        ,max(t3.abo_partenaires) as prem_abo_partenaires
+        ,max(t3.abo_gratuit) as prem_abo_gratuit
+
+    FROM
+        patrimoine_classe1.dt_tirage t1
+    LEFT JOIN
+        patrimoine_classe1.dt_tirage t2 on t1.code_client = t2.code_client and t1.ref_ancien_abo = t2.ref_abonnement
+    LEFT JOIN
+        patrimoine_classe1.dt_tirage t3 on t1.code_client = t3.code_client and t1.ref_premier_abo = t3.ref_abonnement
+    WHERE
+        coalesce(t1.abo_paye_ind,0) = 1 
+        --and t1.code_client=34669820
+     --   and t1.ref_abonnement=19024703
+   GROUP BY ALL
+  -- HAVING prem_date_parution_pns != prem_date_parution
+  -- LIMIT 100
+   --) test
+    --QUALIFY row_number() over (partition by t1.code_client,t1.ref_abonnement,t1.no_parution order by t1.no_parution) = 1;
+
+)
+(SELECT
+    t.code_client
+    ,t.ref_abonnement
+    ,t.ref_ancien_abo
+    ,c.ref_premier_abo
+    ,t.type_abo_reabo
+    ,t.no_parution
+    ,t.type_duree
+    ,t.duree_abonnement
+    ,t.fidelite
+    ,t.cs_value
+    ,t.pnl
+    ,t.pns
+    ,t.dns
+    ,t.date_parution
+    ,t.date_parution as date_debut_semaine
+    ,dateadd(week,1,t.date_parution) - 1 as date_fin_semaine
+    ,t.date_parution_pns
+    ,t.date_parution_dns
+    ,t.date_parution_dnl
+    ,year(t.date_parution_dnl) as annee
+    ,t.titre_abrege
+    ,t.nb_exemplaires
+    ,t.a_servir
+    ,round(t.montant_ht / t.a_servir,3) as ca_ht
+    ,round(ca_ht / t.nb_exemplaires,3) as pu_numero_ht
+    ,round(t.pu_numero_ttc,3) as pu_numero_ttc
+    ,t.montant_ht
+    ,round(t.montant_ttc,3) as montant_ttc
+    ,t.collaborateur
+    ,t.collecteur
+    ,t.code_tarif
+    ,t.famille_tarif
+    ,t.groupe_mode_paiement 
+    ,t.groupe_mode_paiement_tableau
+    ,t.mode_paiement
+    ,t.cp
+    ,t.code_dept
+    ,t.nom_region
+    ,t.nom_pays
+    ,t.fm_dt_et
+    ,t.abo_paye_ind
+    ,t.abo_grace_copie
+    ,t.abo_point_com
+    ,t.abo_grande_ecole
+    ,t.abo_partenaires
+    ,t.abo_gratuit
+    ,t.code_relance
+    ,t.famille_relance
+    ,t.groupe_famille_relance
+    ,t.origine_abonnement
+    ,t.canal_origine_abonnement
+    ,t.s_canal_origine_abonnement
+    ,t.groupe_canal_origine_abonnement
+    ,t.groupe_canal_marketing_origine_abonnement
+    ,t.origine_reabonnement
+    ,t.canal_origine_reabonnement
+    ,t.s_canal_origine_reabonnement
+    ,t.groupe_canal_origine_reabonnement
+    ,t.groupe_canal_marketing_origine_reabonnement
+    ,c.prev_titre_abrege
+    ,c.prev_type_duree
+    ,case when coalesce(t.titre_abrege,'') = 'LPN' then 'NUM' else 'INT' end as type_abo_simplifie
+    ,case coalesce(prev_titre_abrege,'')
+            when 'LPN' then 'NUM'
+            when 'LPP' then 'INT' end as prev_type_abo_simplifie
+    ,case when coalesce(t.type_duree,'') = 'TC' then 'DL' else t.type_duree end as type_duree_simplifie
+    ,case when coalesce(prev_type_duree,'') = 'TC' then 'DL' else prev_type_duree end as prev_type_duree_simplifie
+    ,prev_code_tarif
+    ,prev_pns
+    ,prev_dns
+    ,prev_date_parution_pns
+    ,prev_date_parution_dns
+    ,prev_famille_tarif
+    ,prev_montant_ht
+    ,c.prev_mode_paiement
+    ,c.prev_groupe_mode_paiement_tableau
+    ,c.prev_groupe_mode_paiement
+    ,diff_par_avec_precedent_dns
+ ,categorie
+       ,case
+           when categorie = 'RENOUVELLEMENT' then
+               case
+                   when prev_type_duree_simplifie = 'DD' then 'REABO'
+                   when prev_type_duree_simplifie = 'DL' then 'RETENTION'
+               end
+           when categorie = 'ACQUISITION' and diff_par_avec_precedent_dns < 26 or (categorie = 'ACQUISITION' and t.ref_ancien_abo != t.ref_abonnement) then 'ANCIEN - NEW OLD (FAUX)'
+           when categorie = 'ACQUISITION' and diff_par_avec_precedent_dns >= 26 then 'ANCIEN - NEW OLD'
+           when categorie = 'ACQUISITION' and diff_par_avec_precedent_dns is null then 'NOUVEAU - NEW NEW'
+           else 'STOCK' end as sous_categorie    
+    ,c.prem_nb_exemplaires
+    ,c.prem_code_tarif
+    ,c.prem_pns
+    ,c.prem_date_parution
+    ,c.prem_date_parution_pns
+    ,c.prem_titre_abrege
+    ,case when coalesce(c.prem_titre_abrege,'') = 'LPN' then 'NUM' else 'INT' end as prem_type_abo_simplifie
+    ,c.prem_famille_tarif
+    ,prem_type_duree
+    ,case when coalesce(c.prem_type_duree,'') = 'TC' then 'DL' else prem_type_duree end as prem_type_duree_simplifiee
+    ,c.prem_duree_abonnement
+    ,c.prem_a_servir
+    ,c.prem_montant_ht
+    ,c.prem_abo_paye_ind
+    ,c.prem_abo_point_com
+    ,c.prem_abo_grande_ecole
+    ,c.prem_abo_partenaires
+    ,c.prem_abo_grace_copie
+    ,c.prem_abo_gratuit
+    ,c.prem_mode_paiement
+    ,c.prem_groupe_mode_paiement_tableau
+    ,c.prem_groupe_mode_paiement
+    ,t.budget_recrutement_print_integral
+    ,t.budget_recrutement_numerique
+    ,'ABOWEB' as source
+    ,0 as FLG_INAPP
+
+FROM patrimoine_classe1.dt_tirage t 
+INNER JOIN PRE_TIRAGE360 c on t.code_client = c. code_client and t.ref_abonnement = c.ref_abonnement and t.no_parution = c.no_parution
+)
+
+UNION ALL
+
+/* INAPP */
+
+SELECT 
+    NULL AS CODE_CLIENT,
+    NULL AS REF_ABONNEMENT,
+    NULL AS REF_ANCIEN_ABO,
+    NULL AS REF_PREMIER_ABO,
+    NULL AS TYPE_ABO_REABO,
+    i.NO_PARUTION,
+    NULL AS TYPE_DUREE,
+    NULL AS DUREE_ABONNEMENT,
+    NULL AS FIDELITE,
+    NULL AS CS_VALUE,
+    NULL AS PNL,
+    NULL AS PNS,
+    NULL AS DNS,
+    i.DATE_PARUTION,
+    i.DATE_PARUTION AS DATE_DEBUT_SEMAINE,
+    DATE_FIN_SEMAINE,
+    NULL AS DATE_PARUTION_PNS,
+    NULL AS DATE_PARUTION_DNS,
+    NULL AS DATE_PARUTION_DNL,
+    NULL AS ANNEE,
+    NULL AS TITRE_ABREGE,
+    NB_EXEMPLAIRES,
+    NULL AS A_SERVIR,
+    CA_HT,
+    PU_NUMERO_HT,
+    NULL AS PU_NUMERO_TTC,
+    NULL AS MONTANT_HT,
+    NULL AS MONTANT_TTC,
+    NULL AS COLLABORATEUR,
+    NULL AS COLLECTEUR,
+    NULL AS CODE_TARIF,
+    NULL AS FAMILLE_TARIF,
+    NULL AS GROUPE_MODE_PAIEMENT,
+    NULL AS GROUPE_MODE_PAIEMENT_TABLEAU,
+    NULL AS MODE_PAIEMENT,
+    NULL AS CP,
+    NULL AS CODE_DEPT,
+    NULL AS NOM_REGION,
+    NULL AS NOM_PAYS,
+    NULL AS FM_DT_ET,
+    NULL AS ABO_PAYE_IND,
+    NULL AS ABO_GRACE_COPIE,
+    NULL AS ABO_POINT_COM,
+    NULL AS ABO_GRANDE_ECOLE,
+    NULL AS ABO_PARTENAIRES,
+    NULL AS ABO_GRATUIT,
+    NULL AS CODE_RELANCE,
+    NULL AS FAMILLE_RELANCE,
+    NULL AS GROUPE_FAMILLE_RELANCE,
+    NULL AS ORIGINE_ABONNEMENT,
+    NULL AS CANAL_ORIGINE_ABONNEMENT,
+    NULL AS S_CANAL_ORIGINE_ABONNEMENT,
+    NULL AS GROUPE_CANAL_ORIGINE_ABONNEMENT,
+    NULL AS GROUPE_CANAL_MARKETING_ORIGINE_ABONNEMENT,
+    NULL AS ORIGINE_REABONNEMENT,
+    NULL AS CANAL_ORIGINE_REABONNEMENT,
+    NULL AS S_CANAL_ORIGINE_REABONNEMENT,
+    NULL AS GROUPE_CANAL_ORIGINE_REABONNEMENT,
+    NULL AS GROUPE_CANAL_MARKETING_ORIGINE_REABONNEMENT,
+    NULL AS PREV_TITRE_ABREGE,
+    NULL AS PREV_TYPE_DUREE,
+    TYPE_ABO_SIMPLIFIE,
+    NULL AS PREV_TYPE_ABO_SIMPLIFIE,
+    NULL AS TYPE_DUREE_SIMPLIFIE,
+    NULL AS PREV_TYPE_DUREE_SIMPLIFIE,
+    NULL AS PREV_CODE_TARIF,
+    NULL AS PREV_PNS,
+    NULL AS PREV_DNS,
+    NULL AS PREV_DATE_PARUTION_PNS,
+    NULL AS PREV_DATE_PARUTION_DNS,
+    NULL AS PREV_FAMILLE_TARIF,
+    NULL AS PREV_MONTANT_HT,
+    NULL AS PREV_MODE_PAIEMENT,
+    NULL AS PREV_GROUPE_MODE_PAIEMENT_TABLEAU,
+    NULL AS PREV_GROUPE_MODE_PAIEMENT,
+    NULL AS DIFF_PAR_AVEC_PRECEDENT_DNS,
+    CATEGORIE,
+    SOUS_CATEGORIE,
+    NULL AS PREM_NB_EXEMPLAIRES,
+    NULL AS PREM_CODE_TARIF,
+    NULL AS PREM_PNS,
+    NULL AS PREM_DATE_PARUTION,
+    NULL AS PREM_DATE_PARUTION_PNS,
+    NULL AS PREM_TITRE_ABREGE,
+    NULL AS PREM_TYPE_ABO_SIMPLIFIE,
+    NULL AS PREM_FAMILLE_TARIF,
+    NULL AS PREM_TYPE_DUREE,
+    NULL AS PREM_TYPE_DUREE_SIMPLIFIEE,
+    NULL AS PREM_DUREE_ABONNEMENT,
+    NULL AS PREM_A_SERVIR,
+    NULL AS PREM_MONTANT_HT,
+    NULL AS PREM_ABO_PAYE_IND,
+    NULL AS PREM_ABO_POINT_COM,
+    NULL AS PREM_ABO_GRANDE_ECOLE,
+    NULL AS PREM_ABO_PARTENAIRES,
+    NULL AS PREM_ABO_GRACE_COPIE,
+    NULL AS PREM_ABO_GRATUIT,
+    NULL AS PREM_MODE_PAIEMENT,
+    NULL AS PREM_GROUPE_MODE_PAIEMENT_TABLEAU,
+    NULL AS PREM_GROUPE_MODE_PAIEMENT,
+    BUDGET_RECRUTEMENT_PRINT_INTEGRAL,
+    BUDGET_RECRUTEMENT_NUMERIQUE,
+    SOURCE,
+    1 as FLG_INAPP
+
+FROM datatables_prod.patrimoine_classe1.v_tirage_inapp i
+LEFT JOIN RAWDATA_PROD.REFERENTIEL.REF_BUDGET_ABO b on i.no_parution = b.no_parution
+
+;
