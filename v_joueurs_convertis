@@ -1,0 +1,20 @@
+create or replace view INSIGHTS.PROD.V_JOUEURS_CONVERTIS(
+	ID_UTILISATEUR,
+	DATE_OBTENTION_BADGE_ABONNE,
+	DERNIERE_DATE_VISITE_CONVERTIE
+) as
+SELECT 
+     uj.id_utilisateur
+    ,uj.date_obtention_badge_abonne
+    ,max(v.visite_date) as derniere_date_visite_convertie
+FROM 
+    dt_gamification_utilisateur uj 
+LEFT JOIN
+    DATATABLES_PROD.PATRIMOINE_CLASSE2.VISITES v on replace(v.id_utilisateur,'an_','') = uj.id_utilisateur
+WHERE
+    visite_convertie = true
+    and visite_date >= '2023-11-28'
+    and est_joueur = true
+GROUP BY ALL
+HAVING max(visite_date) = uj.date_obtention_badge_abonne
+;
