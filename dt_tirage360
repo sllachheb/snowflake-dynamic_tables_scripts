@@ -166,7 +166,7 @@ AS (
         patrimoine_classe1.dt_tirage t3 on t1.code_client = t3.code_client and t1.ref_premier_abo = t3.ref_abonnement
     WHERE
         coalesce(t1.abo_paye_ind,0) = 1 
-        --and t1.code_client=34669820
+      --  and t1.code_client=34669820
      --   and t1.ref_abonnement=19024703
    GROUP BY ALL
   -- HAVING prem_date_parution_pns != prem_date_parution
@@ -195,7 +195,7 @@ AS (
     ,t.date_parution_pns
     ,t.date_parution_dns
     ,t.date_parution_dnl
-    ,year(t.date_parution_dnl) as annee
+    ,year(t.date_parution) as annee
     ,t.titre_abrege
     ,t.nb_exemplaires
     ,t.a_servir
@@ -354,7 +354,7 @@ SELECT
     NULL AS CANAL_ORIGINE_ABONNEMENT,
     NULL AS S_CANAL_ORIGINE_ABONNEMENT,
     NULL AS GROUPE_CANAL_ORIGINE_ABONNEMENT,
-    NULL AS GROUPE_CANAL_MARKETING_ORIGINE_ABONNEMENT,
+    'INAPP' AS GROUPE_CANAL_MARKETING_ORIGINE_ABONNEMENT,
     NULL AS ORIGINE_REABONNEMENT,
     NULL AS CANAL_ORIGINE_REABONNEMENT,
     NULL AS S_CANAL_ORIGINE_REABONNEMENT,
