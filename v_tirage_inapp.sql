@@ -46,7 +46,7 @@ select
     ,installations_payees as nb_exemplaires
     ,0 as abo_gratuit
     ,'ACQUISITION' as categorie
-    ,'INAPP' as sous_categorie
+    ,'NOUVEAU - NEW NEW' as sous_categorie
     ,annee
     ,date_fin_semaine
     ,date_parution
