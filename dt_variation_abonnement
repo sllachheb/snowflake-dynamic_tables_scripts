@@ -1,0 +1,169 @@
+create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_VARIATION_ABONNEMENT(
+	CODE_CLIENT,
+	REF_ABONNEMENT,
+	REF_ANCIEN_ABO,
+	REF_ANCIEN_MAITRE,
+	TYPE_ABO_REABO,
+	ABREVIATION_MOTIF,
+	LIBELLE_MOTIF,
+	TYPE_VARIATION,
+	A_SERVIR,
+	NO_PARUTION,
+	DATE_PARUTION,
+	MODE_ENVOI,
+	PNS,
+	DNL,
+	DNS,
+	NB_EXEMPLAIRES,
+	PU_NUMERO_HT,
+	FM_DT_ET,
+	ISO3166_1_A2,
+	DEPTORPAYS,
+	NOM_PAYS,
+	NOM_REGION,
+	NOM_DEPT,
+	CP,
+	TYPE_ABONNEMENT,
+	CODE_TARIF,
+	DESI_TARIF,
+	FAMILLE_TARIF,
+	TYPE_ABO_SIMPLIFIE,
+	TARIF_ADL,
+	TARIF_PRELEVE,
+	TYPE_DUREE,
+	TYPE_DUREE_SIMPLIFIE,
+	TITRE_ABREGE,
+	MODE_PAIEMENT,
+	LIBELLE_MOTIF_SUSPENSION,
+	REF_ORIGINE,
+	ORIGINE_ABONNEMENT,
+	LIB_ORIGINE_ABONNEMENT,
+	QTE_ENVOI_ORIGINE_ABONNEMENT,
+	TYPE_ORIGINE_ORIGINE_ABONNEMENT,
+	RATTACHEMENT_ORIGINE_ABONNEMENT,
+	CODE_CAMPAGNE_ORIGINE_ABONNEMENT,
+	CAMPAGNE_ORIGINE_ABONNEMENT,
+	LOT_ORIGINE_ABONNEMENT,
+	LIBELLE_LOT_ORIGINE_ABONNEMENT,
+	FICHIER_ORIGINE_ABONNEMENT,
+	SEGMENT_ORIGINE_ABONNEMENT,
+	SEGMENT_NUMERO_ORIGINE_ABONNEMENT,
+	CANAL_ORIGINE_ABONNEMENT,
+	S_CANAL_ORIGINE_ABONNEMENT,
+	GROUPE_CANAL_ORIGINE_ABONNEMENT,
+	GROUPE_CANAL_MARKETING_ORIGINE_ABONNEMENT,
+	ORIGINE_REABONNEMENT,
+	LIB_ORIGINE_REABONNEMENT,
+	QTE_ENVOI_ORIGINE_REABONNEMENT,
+	TYPE_ORIGINE_ORIGINE_REABONNEMENT,
+	RATTACHEMENT_ORIGINE_REABONNEMENT,
+	CODE_CAMPAGNE_ORIGINE_REABONNEMENT,
+	CAMPAGNE_ORIGINE_REABONNEMENT,
+	LOT_ORIGINE_REABONNEMENT,
+	LIBELLE_LOT_ORIGINE_REABONNEMENT,
+	FICHIER_ORIGINE_REABONNEMENT,
+	SEGMENT_ORIGINE_REABONNEMENT,
+	SEGMENT_NUMERO_ORIGINE_REABONNEMENT,
+	CANAL_ORIGINE_REABONNEMENT,
+	S_CANAL_ORIGINE_REABONNEMENT,
+	GROUPE_CANAUX_ORIGINE_REABONNEMENT,
+	GROUPE_CANAL_MARKETING_ORIGINE_REABONNEMENT
+) lag = '3 days' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
+ as
+
+select
+    m.code_client
+    ,m.ref_abonnement
+    ,ab.ref_ancien_abo
+    ,ab.ref_ancien_maitre
+    ,case when ab.ref_ancien_abo IS NULL OR (ab.REF_ANCIEN_ABO IS NOT NULL AND (m.ORIGINE_REABONNEMENT IS NULL OR m.ORIGINE_REABONNEMENT = '')) THEN 'ABO'ELSE 'REABO' end as type_abo_reabo
+ --   ,case when ab.ref_ancien_maitre IS NULL OR (ab.ref_ancien_maitre IS NOT NULL AND (m.ORIGINE_REABONNEMENT IS NULL OR m.ORIGINE_REABONNEMENT = '')) THEN 'ABO'ELSE 'REABO' end as type_abo_reabo_v2
+    ,n.abreviation_motif
+    ,n.libelle_motif
+    ,m.type_variation
+    ,m.a_servir
+    ,m.no_parution
+    ,cal.datpar as date_parution
+    ,m.mode_envoi
+    ,m.pns
+    ,m.dnl
+    ,m.dns
+    ,m.nb_exemplaires
+    ,m.pu_numero_ht
+    -- d_histo_adresseslivrees
+    ,b.fm_dt_et
+    ,b.iso3166_1_a2
+    ,b.deptorpays
+    ,b.nom_pays
+    ,b.nom_region
+    ,b.nom_dept
+    ,b.cp
+    -- d_tarifsetformules
+    ,c.type_abonnement
+    ,c.code_tarif
+    ,c.desi_tarif
+    ,c.famille_tarif
+    ,case when coalesce(d.titre_abrege,'') = 'LPN' then 'NUM' else 'INT' end as type_abo_simplifie
+    ,c.tarif_adl
+    ,c.tarif_preleve
+    ,c.type_duree
+    ,case when coalesce(c.type_duree,'') = 'TC' then 'DL' else c.type_duree end as type_duree_simplifie
+    -- t_titres
+    ,d.titre_abrege
+    -- d_canalpaiement
+    ,g.mode_paiement
+    -- t_suspensions_motifs
+    ,sm.libelle_motif as libelle_motif_suspension
+    --check
+    ,m.ref_origine
+   -- ,m.origine_reabonnement
+    -- ref_origine_abonnement
+    ,roa1.origine as origine_abonnement
+    ,roa1.lib_origine as lib_origine_abonnement
+    ,roa1.qte_envoi as qte_envoi_origine_abonnement
+    ,roa1.type_origine as type_origine_origine_abonnement
+    ,roa1.rattachement as rattachement_origine_abonnement
+    ,roa1.code_campagne as code_campagne_origine_abonnement
+    ,roa1.campagne as campagne_origine_abonnement
+    ,roa1.lot as lot_origine_abonnement
+    ,roa1.libelle_lot as libelle_lot_origine_abonnement
+    ,roa1.fichier as fichier_origine_abonnement
+    ,roa1.segment as segment_origine_abonnement
+    ,roa1.segment_numero as segment_numero_origine_abonnement
+--    ,roa1.type_offre as type_offre_origine_abonnement
+    ,roa1.canal as canal_origine_abonnement
+    ,roa1.s_canal as s_canal_origine_abonnement
+    ,roa1.groupe_canal as groupe_canal_origine_abonnement
+    ,roa1.groupe_canal_marketing as groupe_canal_marketing_origine_abonnement
+    ,roa2.origine as origine_reabonnement
+    ,roa2.lib_origine as lib_origine_reabonnement
+    ,roa2.qte_envoi as qte_envoi_origine_reabonnement
+    ,roa2.type_origine as type_origine_origine_reabonnement
+    ,roa2.rattachement as rattachement_origine_reabonnement
+    ,roa2.code_campagne as code_campagne_origine_reabonnement
+    ,roa2.campagne as campagne_origine_reabonnement
+    ,roa2.lot as lot_origine_reabonnement
+    ,roa2.libelle_lot as libelle_lot_origine_reabonnement
+    ,roa2.fichier as fichier_origine_reabonnement
+    ,roa2.segment as segment_origine_reabonnement
+    ,roa2.segment_numero as segment_numero_origine_reabonnement
+ --   ,roa2.type_offre as type_offre_origine_reabonnement
+    ,roa2.canal as canal_origine_reabonnement
+    ,roa2.s_canal as s_canal_origine_reabonnement
+    ,roa2.groupe_canal as groupe_canaux_origine_reabonnement
+    ,roa2.groupe_canal_marketing as groupe_canal_marketing_origine_reabonnement
+  
+    
+from RAWDATA_PROD.BI_ABOWEB.F_VARIATION_ABONNEMENT m 
+left join RAWDATA_PROD.BI_ABOWEB.F_ABONNEMENTS ab on m.ref_abonnement = ab.ref_abonnement 
+inner join RAWDATA_PROD.BI_ABOWEB.D_HISTO_ADRESSESLIVREES b on m.CODE_CLIENT = b.CODE_CLIENT and b.NO_PARUTION = m.dnl and m.REF_TITRE = b.REF_TITRE_LIVRE 
+inner join RAWDATA_PROD.BI_ABOWEB.T_TITRES d on m.REF_TITRE = d.REF_TITRE 
+inner join RAWDATA_PROD.BI_ABOWEB.D_MOTIFS_VARIATION n on m.REF_MOTIF = n.REF_MOTIF 
+left join RAWDATA_PROD.BI_ABOWEB.D_CANALPAIEMENT g on m.REF_ABONNEMENT = g.REF_ABONNEMENT
+left join RAWDATA_PROD.BI_ABOWEB.D_TARIFSETFORMULES c on m.REF_GROUPE = c.REF_TARIF 
+left join RAWDATA_PROD.BI_ABOWEB.D_CALENDRIERSDNL cal on cal.NO_PARUTION = m.no_parution and right(cal.KEYDNL, 2)='01' 
+left join RAWDATA_PROD.BI_ABOWEB.T_SUSPENSIONS_MOTIFS sm on m.REF_MOTIF_SUSPENSION = sm.REF_MOTIF_SUSPENSION 
+left join RAWDATA_PROD.REFERENTIEL.REF_ORIGINE_ABONNEMENT roa1 on trim(upper(m.REF_ORIGINE)) = trim(roa1.ORIGINE) 
+left join RAWDATA_PROD.REFERENTIEL.REF_ORIGINE_ABONNEMENT roa2  on equal_null(upper(m.origine_reabonnement),trim(roa2.origine)) 
+where  (m.REF_TITRE = 1 or (m.REF_TITRE = 2 and c.TITRE_MAITRE = d.TITRE_ABREGE and c.TYPE_ABONNEMENT = 'NUM')) 
+and zeroifnull(m.TYPE_VARIATION) in (-1,1);
