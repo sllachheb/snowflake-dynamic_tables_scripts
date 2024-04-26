@@ -8,18 +8,22 @@ create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_EMBASEMENT
 	DATE_DEBUT_SEMAINE,
 	DATE_FIN_SEMAINE,
 	DATE_ACTIVATION_COMPTE,
+	FLG_COMPTE_ACTIVE,
 	FLG_COMPTE,
 	FLG_NOUVEAU_COMPTE,
 	FLG_ABONNE,
 	FLG_NOUVEL_ABONNE,
 	FLG_ABONNE_FAMILLE,
 	FLG_NOUVEL_ABONNE_FAMILLE,
+	FLG_COMPTE_PRINCIPAL_ABONNE_FAMILLE,
+	NBR_COMPTES_INVITES_ABONNEMENT_FAMILLE,
 	FLG_OPTIN_NL,
 	FLG_NOUVEL_OPTIN_NL,
 	FLG_OPTIN_MARQUE,
 	FLG_NOUVEL_OPTIN_MARQUE,
 	FLG_PORTEUR_APP,
 	FLG_NOUVEAU_PORTEUR_APP,
+	FLG_UTILISATEUR_ACTIF,
 	SEG_ABONNE,
 	SOUS_SEG_ABONNE,
 	TYPE_ABO_SIMPLIFIE
@@ -35,16 +39,19 @@ select
     compte_id_utilisateur,
     compte_code_client,
     compte_date_activation,
+    compte_date_creation,
+    compte_origine,
     service_code,
     service_date_debut,
     service_date_fin,
     service_gele,
-    service_statut
+    service_statut,
+    array_size(compte_id_enfants) as service_nombre
     
 from rawdata_prod.boc.dt_utilisateur_services us
 where
     service_code ilike any ('nl%','offrespoint','abonnelpt','abonnefamille')-- Toutes les NL, optin marque, et informations d'abonnement
-   -- and compte_id_utilisateur = 2581049
+--    and COMPTE_CODE_CLIENT = $compte_code_client -- !!!!!!!!!!! A SUPPRIMER
 )
 ,
 
@@ -52,14 +59,18 @@ where
 
 cte_utilisateur as (
 --create or replace temporary table cte_utilisateur as --asupprimer
+
 select 
     compte_id_utilisateur,
     compte_code_client,
     compte_date_activation,
+    compte_date_creation,
+    case when compte_origine ilike '%swg%' then 1 else 0 end as flg_swg,
     no_parution,
     cal.date_parution,
     max(case when us.service_code = 'abonnelpt' then service_date_debut end) as date_debut_abonnement,
     max(case when us.service_code = 'abonnefamille' then service_date_debut end) as date_debut_abonnement_famille,
+    max(case when us.service_code = 'abonnefamille' then service_nombre end) as nbr_comptes_invites_abonnement_famille,
     min(case when us.service_code ilike 'nl%' then service_date_debut end) as date_debut_optin_nl,
     min(case when us.service_code = 'offrespoint' then service_date_debut end) as date_debut_optin_marque,
     count_if(us.service_code ilike 'nl%') as nb_nl_optin,
@@ -71,36 +82,46 @@ where
     us.service_date_debut <= cal.date_parution
     and us.service_date_fin > cal.date_debut_semaine
     and cal.flg_hors_serie = 0
-    and cal.annee_parution >= year(current_date) - 5
+   -- and cal.date_parution >= '2024-01-01'-- year(current_date) - 1
     --and compte_id_utilisateur = 4894526
 group by all
 ),
 
 cte_utilisateur_360 as (
---create or replace temporary table cte_utilisateur360 as
-select u.*,
+--create or replace temporary table cte_utilisateur_360 as
+select *
+from (
+select 
+    u.compte_id_utilisateur,
+    coalesce(u.compte_code_client,t.code_client) as compte_code_client,
+    coalesce(u.no_parution,t.no_parution) as no_parution,
+    u.compte_date_activation,
+    u.compte_date_creation,
+    u.date_parution,
+    u.date_debut_abonnement,
+    u.date_debut_abonnement_famille,
+    u.nbr_comptes_invites_abonnement_famille,
+    u.date_debut_optin_nl,
+    u.date_debut_optin_marque,
+    case 
+         when t.code_client is not null then 1
+         when u.flg_abonne is null and t.code_client is not null then 1
+         when u.flg_abonne is null and t.code_client is null then 0
+         else u.flg_abonne end as flg_abonne,
+    case when u.flg_swg is null then 0
+         when u.flg_swg = 1 and flg_abonne = 0 then 0
+         when u.flg_swg = 1 and t.code_client is not null then 0
+         else u.flg_swg end as flg_abonne_swg,
+    u.nb_nl_optin,
 case when t.type_abo_simplifie is not null then t.type_abo_simplifie
      when u.date_debut_abonnement is not null then 'NUM' 
      when u.date_debut_abonnement is null then 'N/A' end as type_abo_simplifie,
 case when categorie = 'ACQUISITION' then 1 else 0 end as flg_acquisition_aboweb,
 from cte_utilisateur u
-full join datatables_prod.patrimoine_classe2.dt_tirage360 t on u.compte_code_client = t.code_client and u.no_parution = t.no_parution
---where --year(t.date_parution) >= year(current_date) - 5 
---and
---u.compte_id_utilisateur=2581049
---where t.code_client = 38795721 or u.compte_code_client = 38795721
-
-),
-cte_porteur_dapp as (
-
-select 
-    replace(id_utilisateur,'an_','') as compte_id_utilisateur,
-    min(visite_date) as date_prem_visite_app
-from datatables_prod.patrimoine_classe2.visites
-where
-    visite_support ilike '_%'
-  --  and compte_id_utilisateur = '2611977'
-group by all
+full join datatables_prod.patrimoine_classe2.dt_tirage360 t on trim(u.compte_code_client) = trim(t.code_client) and trim(u.no_parution) = trim(t.no_parution)
+--where t.code_client = $compte_code_client -- asupprimer
+) t
+where date_parution >= current_date - 800
 
 )
 
@@ -115,18 +136,24 @@ select
     t1.date_debut_semaine,
     t1.date_fin_semaine,
     t1.compte_date_activation as date_activation_compte,
-    case when t1.compte_date_activation <= t1.date_parution then 1 else 0 end as flg_compte,
-    case when t1.compte_date_activation <= t1.date_parution and t1.compte_date_activation > date_parution_precedente then 1 else 0 end as flg_nouveau_compte,
+    case when compte_date_activation is null then 0 else 1 end as flg_compte_active,
+    case when t1.compte_date_creation <= t1.date_parution then 1 else 0 end as flg_compte,
+    case when t1.compte_date_creation <= t1.date_parution and t1.compte_date_creation > date_parution_precedente then 1 else 0 end as flg_nouveau_compte,
     case when t1.date_debut_abonnement is not null then 1 else 0 end as flg_abonne,
     case when t1.date_debut_abonnement is not null and t1.date_debut_abonnement > date_parution_precedente then 1 else 0 end as flg_nouvel_abonne,
     case when t1.date_debut_abonnement_famille is not null then 1 else 0 end as flg_abonne_famille,
     case when t1.date_debut_abonnement_famille is not null and t1.date_debut_abonnement_famille > date_parution_precedente then 1 else 0 end as flg_nouvel_abonne_famille,
+    case when flg_abonne_famille = 1 then 1 else 0 end as flg_compte_principal_abonne_famille,
+    t1.nbr_comptes_invites_abonnement_famille,
     t1.flg_optin_nl,
     case when t1.date_debut_optin_nl is not null and t1.date_debut_optin_nl > date_parution_precedente then 1 else 0 end as flg_nouvel_optin_nl,
     t1.flg_optin_marque,
     case when t1.date_debut_optin_marque is not null and t1.date_debut_optin_marque > date_parution_precedente then 1 else 0 end as flg_nouvel_optin_marque,
     case when app.date_prem_visite_app <= t1.date_parution then 1 else 0 end as flg_porteur_app,
     case when app.date_prem_visite_app <= t1.date_parution and app.date_prem_visite_app > date_parution_precedente then 1 else 0 end as flg_nouveau_porteur_app,
+    case when app.nbre_visites_par_jour is null then 0
+         when app.nbre_visites_par_jour > 0 then 1
+         else 0 end as flg_utilisateur_actif,
     case when flg_abonne = 1 then 'Abonné' else 'Hors abonné' end as seg_abonne,
     case when flg_abonne = 1 and type_abo_simplifie = 'INT' then 'Abonné intégral'
          when flg_abonne = 1 and type_abo_simplifie = 'NUM' and compte_code_client is not null then 'Abonné numérique ABOWEB'
@@ -136,13 +163,6 @@ select
          else 'Anonyme' end as sous_seg_abonne,
          type_abo_simplifie
     
---Micro - segmentation => SOUS_SEG_ABONNE
--- Abonnés intégraux
--- Abonnés numériques aboweb 
--- Abonnés numériques autres (swg, abonnefamille)
--- Non abonnés
--- Anonymes
-
 from(
     select 
         u.compte_id_utilisateur,
@@ -154,12 +174,14 @@ from(
         cal.date_fin_semaine,
         cal.mois_annee_parution,
         u.compte_date_activation,
+        u.compte_date_creation,
         u.date_debut_abonnement, -- new
         u.date_debut_abonnement_famille,
         u.date_debut_optin_nl,
         u.date_debut_optin_marque,
         u.type_abo_simplifie,
         u.flg_acquisition_aboweb,
+        u.nbr_comptes_invites_abonnement_famille,
 
         max(case when date_debut_optin_marque is not null then 1 else 0 end) as flg_optin_marque,
         max(case when nb_nl_optin >= 1 then 1 else 0 end) as flg_optin_nl   
@@ -168,5 +190,5 @@ from(
     left join datatables_prod.patrimoine_classe1.v_calendrier_parutions cal on u.no_parution = cal.no_parution and cal.flg_hors_serie = 0
     group by all
 ) t1
-left join cte_porteur_dapp app on t1.compte_id_utilisateur::string = app.compte_id_utilisateur::string
+left join DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_ACTIVITE_UTILISATEUR app on t1.compte_id_utilisateur::string = app.id_utilisateur::string and t1.no_parution = app.no_parution
 ;
