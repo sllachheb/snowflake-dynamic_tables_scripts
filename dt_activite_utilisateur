@@ -1,0 +1,31 @@
+create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_ACTIVITE_UTILISATEUR(
+	ID_UTILISATEUR,
+	DATE_PARUTION,
+	DATE_DEBUT_SEMAINE,
+	DATE_FIN_SEMAINE,
+	NO_PARUTION,
+	DATE_PREM_VISITE_APP,
+	NBRE_VISITES_PAR_JOUR
+) lag = 'DOWNSTREAM' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
+ as
+select 
+REGEXP_REPLACE(v.id_utilisateur, '[^0-9]', '') as id_utilisateur,
+date_parution,
+date_debut_semaine,
+date_fin_semaine,
+no_parution,
+date_prem_visite_app,
+count(*) as nbre_visites_par_jour
+
+from datatables_prod.patrimoine_classe2.visites v
+inner join DATATABLES_PROD.PATRIMOINE_CLASSE1.V_CALENDRIER_PARUTIONS cal on v.visite_date between cal.date_debut_semaine and cal.date_fin_semaine and cal.flg_hors_serie = 0
+inner join (
+select 
+    REGEXP_REPLACE(id_utilisateur, '[^0-9]', '') as id_utilisateur,
+    min(visite_date) as date_prem_visite_app
+from datatables_prod.patrimoine_classe2.visites
+where
+    visite_support ilike '_%'
+group by all
+) app on app.id_utilisateur = REGEXP_REPLACE(v.id_utilisateur, '[^0-9]', '')
+group by all;
