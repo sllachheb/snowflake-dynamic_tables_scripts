@@ -16,14 +16,19 @@ create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_EMBASEMENT
 	FLG_ABONNE_FAMILLE,
 	FLG_NOUVEL_ABONNE_FAMILLE,
 	FLG_COMPTE_PRINCIPAL_ABONNE_FAMILLE,
+	FLG_COMPTE_ENFANT_ABONNE_FAMILLE,
 	NBR_COMPTES_INVITES_ABONNEMENT_FAMILLE,
+	COMPTE_ID_UTILISATEUR_PARENT,
 	FLG_OPTIN_NL,
 	FLG_NOUVEL_OPTIN_NL,
 	FLG_OPTIN_MARQUE,
 	FLG_NOUVEL_OPTIN_MARQUE,
 	FLG_PORTEUR_APP,
 	FLG_NOUVEAU_PORTEUR_APP,
-	FLG_UTILISATEUR_ACTIF,
+	FLG_UTILISATEUR_ACTIF_GLOBAL,
+	FLG_UTILISATEUR_ACTIF_SITE_MOBILE,
+	FLG_UTILISATEUR_ACTIF_APP,
+	FLG_UTILISATEUR_ACTIF_DESKTOP,
 	SEG_ABONNE,
 	SOUS_SEG_ABONNE,
 	TYPE_ABO_SIMPLIFIE
@@ -46,7 +51,7 @@ select
     service_date_fin,
     service_gele,
     service_statut,
-    array_size(compte_id_enfants) as service_nombre
+    service_nombre
     
 from rawdata_prod.boc.dt_utilisateur_services us
 where
@@ -97,7 +102,7 @@ select
     coalesce(u.no_parution,t.no_parution) as no_parution,
     u.compte_date_activation,
     u.compte_date_creation,
-    u.date_parution,
+    coalesce(u.date_parution,t.date_parution) as date_parution,
     u.date_debut_abonnement,
     u.date_debut_abonnement_famille,
     u.nbr_comptes_invites_abonnement_famille,
@@ -118,10 +123,11 @@ case when t.type_abo_simplifie is not null then t.type_abo_simplifie
      when u.date_debut_abonnement is null then 'N/A' end as type_abo_simplifie,
 case when categorie = 'ACQUISITION' then 1 else 0 end as flg_acquisition_aboweb,
 from cte_utilisateur u
-full join datatables_prod.patrimoine_classe2.dt_tirage360 t on trim(u.compte_code_client) = trim(t.code_client) and trim(u.no_parution) = trim(t.no_parution)
+full join datatables_prod.patrimoine_classe2.dt_tirage360 t on trim(u.compte_code_client) = trim(t.code_client) and trim(u.no_parution) = trim(t.no_parution) and t.flg_swg = 0 and t.flg_inapp = 0
 --where t.code_client = $compte_code_client -- asupprimer
 ) t
-where date_parution >= current_date - 800
+where --no_parution = 2700
+date_parution >= current_date - 800
 
 )
 
@@ -144,16 +150,27 @@ select
     case when t1.date_debut_abonnement_famille is not null then 1 else 0 end as flg_abonne_famille,
     case when t1.date_debut_abonnement_famille is not null and t1.date_debut_abonnement_famille > date_parution_precedente then 1 else 0 end as flg_nouvel_abonne_famille,
     case when flg_abonne_famille = 1 then 1 else 0 end as flg_compte_principal_abonne_famille,
+    t1.flg_compte_enfant_abonne_famille,
     t1.nbr_comptes_invites_abonnement_famille,
+    t1.compte_id_utilisateur_parent,
     t1.flg_optin_nl,
     case when t1.date_debut_optin_nl is not null and t1.date_debut_optin_nl > date_parution_precedente then 1 else 0 end as flg_nouvel_optin_nl,
     t1.flg_optin_marque,
     case when t1.date_debut_optin_marque is not null and t1.date_debut_optin_marque > date_parution_precedente then 1 else 0 end as flg_nouvel_optin_marque,
     case when app.date_prem_visite_app <= t1.date_parution then 1 else 0 end as flg_porteur_app,
     case when app.date_prem_visite_app <= t1.date_parution and app.date_prem_visite_app > date_parution_precedente then 1 else 0 end as flg_nouveau_porteur_app,
-    case when app.nbre_visites_par_jour is null then 0
-         when app.nbre_visites_par_jour > 0 then 1
-         else 0 end as flg_utilisateur_actif,
+    case when app.nbre_visites_par_jour_global is null then 0
+         when app.nbre_visites_par_jour_global > 0 then 1
+         else 0 end as flg_utilisateur_actif_global,
+    case when app.NBRE_VISITES_PAR_JOUR_SITE_MOBILE is null then 0
+         when app.NBRE_VISITES_PAR_JOUR_SITE_MOBILE > 0 then 1
+         else 0 end as flg_utilisateur_actif_site_mobile,
+    case when app.NBRE_VISITES_PAR_JOUR_APP is null then 0
+         when app.NBRE_VISITES_PAR_JOUR_APP > 0 then 1
+         else 0 end as flg_utilisateur_actif_app,
+    case when app.NBRE_VISITES_PAR_JOUR_DESKTOP is null then 0
+         when app.NBRE_VISITES_PAR_JOUR_DESKTOP > 0 then 1
+         else 0 end as flg_utilisateur_actif_desktop,
     case when flg_abonne = 1 then 'Abonné' else 'Hors abonné' end as seg_abonne,
     case when flg_abonne = 1 and type_abo_simplifie = 'INT' then 'Abonné intégral'
          when flg_abonne = 1 and type_abo_simplifie = 'NUM' and compte_code_client is not null then 'Abonné numérique ABOWEB'
@@ -182,12 +199,15 @@ from(
         u.type_abo_simplifie,
         u.flg_acquisition_aboweb,
         u.nbr_comptes_invites_abonnement_famille,
-
+        case when af.compte_id_utilisateur_enfant is not null then 1 else 0 end as flg_compte_enfant_abonne_famille,
+        af.compte_id_utilisateur as compte_id_utilisateur_parent,
+        u.flg_abonne,
         max(case when date_debut_optin_marque is not null then 1 else 0 end) as flg_optin_marque,
         max(case when nb_nl_optin >= 1 then 1 else 0 end) as flg_optin_nl   
         
     from cte_utilisateur_360 u
     left join datatables_prod.patrimoine_classe1.v_calendrier_parutions cal on u.no_parution = cal.no_parution and cal.flg_hors_serie = 0
+    left join DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_UTILISATEUR_PARENT_ENFANTS af on af.compte_id_utilisateur_enfant = u.compte_id_utilisateur
     group by all
 ) t1
 left join DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_ACTIVITE_UTILISATEUR app on t1.compte_id_utilisateur::string = app.id_utilisateur::string and t1.no_parution = app.no_parution
