@@ -18,7 +18,7 @@ create or replace view DATATABLES_PROD.PATRIMOINE_CLASSE2.V_EMBASEMENT_NAV(
 	FREQ_VISITES_BOUTIQUE_DESKTOP_CONVERTIE,
 	FREQ_VISITES_BOUTIQUE_CONVERTIE_GLOBALE
 ) as 
-
+;
 SELECT
 
 -- Embasement + Calendrier
@@ -34,6 +34,7 @@ SELECT
     COUNT_IF(rs.SITE = 'Site mobile')                                                                                           AS FREQ_VISITES_SITE_MOBILE,
     COUNT_IF(rs.SITE = 'Le Point')                                                                                              AS FREQ_VISITES_DESKTOP,
     FREQ_VISITES_APP + FREQ_VISITES_SITE_MOBILE + FREQ_VISITES_DESKTOP                                                          AS FREQ_VISITES_GLOBALE,
+    
     COUNT_IF(evt.SITE_LEVEL2 = '_Abonnement' AND rs.SITE IN ('_Mobiles','_Tablettes'))                                          AS FREQ_VISITES_BOUTIQUE_APP,
     COUNT_IF(evt.SITE_LEVEL2 = '_Abonnement' AND rs.SITE = 'Site mobile')                                                       AS FREQ_VISITES_BOUTIQUE_SITE_MOBILE,
     COUNT_IF(evt.SITE_LEVEL2 = '_Abonnement' AND rs.SITE = 'Le Point')                                                          AS FREQ_VISITES_BOUTIQUE_DESKTOP,
@@ -55,6 +56,6 @@ CROSS JOIN DATATABLES_PROD.PATRIMOINE_CLASSE1.V_CALENDRIER_PARUTIONS cal
 WHERE
     DATE(evt.VISIT_TIME) BETWEEN cal.DATE_DEBUT_SEMAINE AND cal.DATE_FIN_SEMAINE
     AND cal.FLG_HORS_SERIE = 0
---    AND DATE(evt.VISIT_TIME) >= CURRENT_DATE - 10 -- Pour les tests
+    AND DATE(evt.VISIT_TIME) >= CURRENT_DATE - 2 -- Pour les tests
 GROUP BY ALL
 ;
