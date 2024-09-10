@@ -7,6 +7,7 @@ create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_EMBASEMENT
 	DATE_PARUTION_PRECEDENTE,
 	DATE_DEBUT_SEMAINE,
 	DATE_FIN_SEMAINE,
+	COMPTE_DATE_CREATION,
 	DATE_ACTIVATION_COMPTE,
 	FLG_COMPTE_ACTIVE,
 	FLG_COMPTE,
@@ -32,183 +33,214 @@ create or replace dynamic table DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_EMBASEMENT
 	SEG_ABONNE,
 	SOUS_SEG_ABONNE,
 	TYPE_ABO_SIMPLIFIE
-) lag = 'DOWNSTREAM' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
+) lag = '3 days' refresh_mode = AUTO initialize = ON_CREATE warehouse = TRANSFORMATION_XS_WH
  as
 
-with cte_pre_utilisateur as (
+WITH CTE_UTILISATEUR AS ( -- >> DONNÉES PUREMENT BOC
 
+--CREATE OR REPLACE TEMPORARY TABLE CTE_UTILISATEUR AS /*RECETTE*/
 
--- On calcule les services pour chaque compte BOC
---create or replace temporary table cte_pre_utilisateur as -- à supprimer
-select 
-    compte_id_utilisateur,
-    compte_code_client,
-    compte_date_activation,
-    compte_date_creation,
-    compte_origine,
-    service_code,
-    service_date_debut,
-    service_date_fin,
-    service_gele,
-    service_statut,
-    service_nombre
+SELECT 
+    COMPTE_ID_UTILISATEUR,
+    COMPTE_CODE_CLIENT,
+    COMPTE_DATE_ACTIVATION,
+    COMPTE_DATE_CREATION,
+    CASE WHEN COMPTE_ORIGINE ILIKE '%swg%' THEN 1 ELSE 0 END                        AS FLG_SWG,
+    NO_PARUTION,
+    CAL.DATE_PARUTION,
+    MAX(CASE WHEN US.SERVICE_CODE = 'abonnelpt' THEN SERVICE_DATE_DEBUT END)        AS DATE_DEBUT_ABONNEMENT,
+    MAX(CASE WHEN US.SERVICE_CODE = 'abonnefamille' THEN SERVICE_DATE_DEBUT END)    AS DATE_DEBUT_ABONNEMENT_FAMILLE,
+    MAX(CASE WHEN US.SERVICE_CODE = 'abonnefamille' THEN SERVICE_NOMBRE END)        AS NBR_COMPTES_INVITES_ABONNEMENT_FAMILLE,
+    MIN(CASE WHEN US.SERVICE_CODE ILIKE 'nl%' THEN SERVICE_DATE_DEBUT END)          AS DATE_DEBUT_OPTIN_NL,
+    MIN(CASE WHEN US.SERVICE_CODE = 'offrespoint' THEN SERVICE_DATE_DEBUT END)      AS DATE_DEBUT_OPTIN_MARQUE,
+    COUNT_IF(US.SERVICE_CODE ILIKE 'nl%')                                           AS NB_NL_OPTIN,
+    COUNT_IF(US.SERVICE_CODE = 'abonnelpt')                                         AS FLG_ABONNE
     
-from rawdata_prod.boc.dt_utilisateur_services us
-where
-    service_code ilike any ('nl%','offrespoint','abonnelpt','abonnefamille')-- Toutes les NL, optin marque, et informations d'abonnement
---    and COMPTE_CODE_CLIENT = $compte_code_client -- !!!!!!!!!!! A SUPPRIMER
-)
-,
+FROM (
 
-
-
-cte_utilisateur as (
---create or replace temporary table cte_utilisateur as --asupprimer
-
-select 
-    compte_id_utilisateur,
-    compte_code_client,
-    compte_date_activation,
-    compte_date_creation,
-    case when compte_origine ilike '%swg%' then 1 else 0 end as flg_swg,
-    no_parution,
-    cal.date_parution,
-    max(case when us.service_code = 'abonnelpt' then service_date_debut end) as date_debut_abonnement,
-    max(case when us.service_code = 'abonnefamille' then service_date_debut end) as date_debut_abonnement_famille,
-    max(case when us.service_code = 'abonnefamille' then service_nombre end) as nbr_comptes_invites_abonnement_famille,
-    min(case when us.service_code ilike 'nl%' then service_date_debut end) as date_debut_optin_nl,
-    min(case when us.service_code = 'offrespoint' then service_date_debut end) as date_debut_optin_marque,
-    count_if(us.service_code ilike 'nl%') as nb_nl_optin,
-    count_if (us.service_code = 'abonnelpt') as flg_abonne
-    
-from cte_pre_utilisateur us 
-cross join datatables_prod.patrimoine_classe1.v_calendrier_parutions cal
-where
-    us.service_date_debut <= cal.date_parution
-    and us.service_date_fin > cal.date_debut_semaine
-    and cal.flg_hors_serie = 0
-   -- and cal.date_parution >= '2024-01-01'-- year(current_date) - 1
-    --and compte_id_utilisateur = 4894526
-group by all
+    SELECT 
+        COMPTE_ID_UTILISATEUR,
+        COMPTE_CODE_CLIENT,
+        COMPTE_DATE_ACTIVATION,
+        COMPTE_DATE_CREATION,
+        COMPTE_ORIGINE,
+        SERVICE_CODE,
+        SERVICE_DATE_DEBUT,
+        SERVICE_DATE_FIN,
+        SERVICE_GELE,
+        SERVICE_STATUT,
+        SERVICE_NOMBRE
+        
+    FROM RAWDATA_PROD.BOC.DT_UTILISATEUR_SERVICES US
+    WHERE
+        (US.SERVICE_CODE ILIKE ANY ('nl%','offrespoint','abonnelpt','abonnefamille') OR US.SERVICE_CODE IS NULL) -- Seulement les NLs, opt-ins marque et abonnements
+        AND US.COMPTE_ETAT IN ('AUTHENTIFIE','COMPTE')
+       -- AND US.COMPTE_ID_UTILISATEUR = 4831716 /*RECETTE*/
+    ) US 
+CROSS JOIN DATATABLES_PROD.PATRIMOINE_CLASSE1.V_CALENDRIER_PARUTIONS CAL
+WHERE
+    (CASE WHEN US.SERVICE_DATE_DEBUT IS NOT NULL THEN US.SERVICE_DATE_DEBUT <= CAL.DATE_DEBUT_SEMAINE ELSE US.COMPTE_DATE_CREATION <= CAL.DATE_DEBUT_SEMAINE END)
+    AND US.SERVICE_DATE_FIN > CAL.DATE_DEBUT_SEMAINE
+    AND CAL.FLG_HORS_SERIE = 0
+   -- AND CAL.NO_PARUTION = 2717
+GROUP BY ALL
 ),
 
-cte_utilisateur_360 as (
---create or replace temporary table cte_utilisateur_360 as
-select *
-from (
-select 
-    u.compte_id_utilisateur,
-    coalesce(u.compte_code_client,t.code_client) as compte_code_client,
-    coalesce(u.no_parution,t.no_parution) as no_parution,
-    u.compte_date_activation,
-    u.compte_date_creation,
-    coalesce(u.date_parution,t.date_parution) as date_parution,
-    u.date_debut_abonnement,
-    u.date_debut_abonnement_famille,
-    u.nbr_comptes_invites_abonnement_famille,
-    u.date_debut_optin_nl,
-    u.date_debut_optin_marque,
-    case 
-         when t.code_client is not null then 1
-         when u.flg_abonne is null and t.code_client is not null then 1
-         when u.flg_abonne is null and t.code_client is null then 0
-         else u.flg_abonne end as flg_abonne,
-    case when u.flg_swg is null then 0
-         when u.flg_swg = 1 and flg_abonne = 0 then 0
-         when u.flg_swg = 1 and t.code_client is not null then 0
-         else u.flg_swg end as flg_abonne_swg,
-    u.nb_nl_optin,
-case when t.type_abo_simplifie is not null then t.type_abo_simplifie
-     when u.date_debut_abonnement is not null then 'NUM' 
-     when u.date_debut_abonnement is null then 'N/A' end as type_abo_simplifie,
-case when categorie = 'ACQUISITION' then 1 else 0 end as flg_acquisition_aboweb,
-from cte_utilisateur u
-full join datatables_prod.patrimoine_classe2.dt_tirage360 t on trim(u.compte_code_client) = trim(t.code_client) and trim(u.no_parution) = trim(t.no_parution) and t.flg_swg = 0 and t.flg_inapp = 0
---where t.code_client = $compte_code_client -- asupprimer
-) t
-where --no_parution = 2700
-date_parution >= current_date - 800
+CTE_UTILISATEUR_360 AS ( -- >> CROISEMENT BOC x ABOWEB
 
-)
+--CREATE OR REPLACE TEMPORARY TABLE CTE_UTILISATEUR_360 AS /*RECETTE*/
+SELECT 
+  * 
+FROM 
+  (
+    SELECT 
+      U.COMPTE_ID_UTILISATEUR, 
+      COALESCE(U.COMPTE_CODE_CLIENT, T.CODE_CLIENT)                             AS COMPTE_CODE_CLIENT, 
+      COALESCE(U.NO_PARUTION, T.NO_PARUTION)                                    AS NO_PARUTION, 
+      U.COMPTE_DATE_ACTIVATION, 
+      U.COMPTE_DATE_CREATION, 
+      COALESCE(U.DATE_PARUTION, T.DATE_PARUTION)                                AS DATE_PARUTION, 
+      U.DATE_DEBUT_ABONNEMENT, 
+      U.DATE_DEBUT_ABONNEMENT_FAMILLE, 
+      U.NBR_COMPTES_INVITES_ABONNEMENT_FAMILLE, 
+      U.DATE_DEBUT_OPTIN_NL, 
+      U.DATE_DEBUT_OPTIN_MARQUE, 
+      
+      CASE WHEN T.CODE_CLIENT IS NOT NULL THEN 1 
+           WHEN U.FLG_ABONNE IS NULL AND T.CODE_CLIENT IS NOT NULL THEN 1 
+           WHEN U.FLG_ABONNE IS NULL AND T.CODE_CLIENT IS NULL THEN 0 
+           ELSE U.FLG_ABONNE END                                                AS FLG_ABONNE, 
+      
+      CASE WHEN U.FLG_SWG IS NULL THEN 0 
+           WHEN U.FLG_SWG = 1 AND FLG_ABONNE = 0 THEN 0 
+           WHEN U.FLG_SWG = 1 AND T.CODE_CLIENT IS NOT NULL THEN 0 
+           ELSE U.FLG_SWG END                                                   AS FLG_ABONNE_SWG, 
+           
+      U.NB_NL_OPTIN, 
+      CASE WHEN T.TYPE_ABO_SIMPLIFIE IS NOT NULL THEN T.TYPE_ABO_SIMPLIFIE 
+           WHEN U.FLG_ABONNE = 1 THEN 'NUM'
+           ELSE 'N/A' END AS TYPE_ABO_SIMPLIFIE,
 
--- Optins
-select
-    t1.compte_id_utilisateur,
-    t1.compte_code_client,
-    t1.no_parution,
-    t1.mois_annee_parution,
-    t1.date_parution,
-    t1.date_parution_precedente,
-    t1.date_debut_semaine,
-    t1.date_fin_semaine,
-    t1.compte_date_activation as date_activation_compte,
-    case when compte_date_activation is null then 0 else 1 end as flg_compte_active,
-    case when t1.compte_date_creation <= t1.date_parution then 1 else 0 end as flg_compte,
-    case when t1.compte_date_creation <= t1.date_parution and t1.compte_date_creation > date_parution_precedente then 1 else 0 end as flg_nouveau_compte,
-    case when t1.date_debut_abonnement is not null then 1 else 0 end as flg_abonne,
-    case when t1.date_debut_abonnement is not null and t1.date_debut_abonnement > date_parution_precedente then 1 else 0 end as flg_nouvel_abonne,
-    case when t1.date_debut_abonnement_famille is not null then 1 else 0 end as flg_abonne_famille,
-    case when t1.date_debut_abonnement_famille is not null and t1.date_debut_abonnement_famille > date_parution_precedente then 1 else 0 end as flg_nouvel_abonne_famille,
-    case when flg_abonne_famille = 1 then 1 else 0 end as flg_compte_principal_abonne_famille,
-    t1.flg_compte_enfant_abonne_famille,
-    t1.nbr_comptes_invites_abonnement_famille,
-    t1.compte_id_utilisateur_parent,
-    t1.flg_optin_nl,
-    case when t1.date_debut_optin_nl is not null and t1.date_debut_optin_nl > date_parution_precedente then 1 else 0 end as flg_nouvel_optin_nl,
-    t1.flg_optin_marque,
-    case when t1.date_debut_optin_marque is not null and t1.date_debut_optin_marque > date_parution_precedente then 1 else 0 end as flg_nouvel_optin_marque,
-    case when app.date_prem_visite_app <= t1.date_parution then 1 else 0 end as flg_porteur_app,
-    case when app.date_prem_visite_app <= t1.date_parution and app.date_prem_visite_app > date_parution_precedente then 1 else 0 end as flg_nouveau_porteur_app,
-    case when app.nbre_visites_par_jour_global is null then 0
-         when app.nbre_visites_par_jour_global > 0 then 1
-         else 0 end as flg_utilisateur_actif_global,
-    case when app.NBRE_VISITES_PAR_JOUR_SITE_MOBILE is null then 0
-         when app.NBRE_VISITES_PAR_JOUR_SITE_MOBILE > 0 then 1
-         else 0 end as flg_utilisateur_actif_site_mobile,
-    case when app.NBRE_VISITES_PAR_JOUR_APP is null then 0
-         when app.NBRE_VISITES_PAR_JOUR_APP > 0 then 1
-         else 0 end as flg_utilisateur_actif_app,
-    case when app.NBRE_VISITES_PAR_JOUR_DESKTOP is null then 0
-         when app.NBRE_VISITES_PAR_JOUR_DESKTOP > 0 then 1
-         else 0 end as flg_utilisateur_actif_desktop,
-    case when flg_abonne = 1 then 'Abonné' else 'Hors abonné' end as seg_abonne,
-    case when flg_abonne = 1 and type_abo_simplifie = 'INT' then 'Abonné intégral'
-         when flg_abonne = 1 and type_abo_simplifie = 'NUM' and compte_code_client is not null then 'Abonné numérique ABOWEB'
-         when flg_abonne = 1 and type_abo_simplifie is null and compte_code_client is not null then 'Abonné ?'
-         when flg_abonne = 1 then 'Abonné numérique autre'
-         when flg_abonne = 0 then 'Non abonné'
-         else 'Anonyme' end as sous_seg_abonne,
-         type_abo_simplifie
+      CASE WHEN CATEGORIE = 'ACQUISITION' THEN 1 ELSE 0 END                     AS FLG_ACQUISITION_ABOWEB 
+      
+    FROM CTE_UTILISATEUR U 
+    FULL JOIN (SELECT * FROM DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_TIRAGE360 WHERE FLG_SWG=0 and FLG_INAPP = 0) T ON TRIM(U.COMPTE_CODE_CLIENT) = TRIM(T.CODE_CLIENT) 
+      AND TRIM(U.NO_PARUTION) = TRIM(T.NO_PARUTION) 
+      --AND U.COMPTE_ID_UTILISATEUR = 5130632 /*RECETTE*/
+      --AND T.CODE_CLIENT IS NULL /*RECETTE*/
+  ) T 
+WHERE 
+  T.DATE_PARUTION >= CURRENT_DATE - 800 -- >> Filtre sur les 800 derniers jours pour limiter la fenêtre d'analyse
+  AND (COMPTE_CODE_CLIENT IS NULL OR COMPTE_CODE_CLIENT IN (SELECT CODE_CLIENT FROM DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_TIRAGE360 GROUP BY ALL)) -- >> Exclusion des clients non individuels
+  --AND COMPTE_CODE_CLIENT IS NULL AND COMPTE_ID_UTILISATEUR IS NULL
+  --AND T.NO_PARUTION = 2717
+  
+--  AND COMPTE_CODE_CLIENT = $CODE_CLIENT -- TEST !
+
+  )
+  
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- >> EMBASEMENT DEBUT << --
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT
+    T1.COMPTE_ID_UTILISATEUR,
+    T1.COMPTE_CODE_CLIENT,
+    T1.NO_PARUTION,
+    T1.MOIS_ANNEE_PARUTION,
+    T1.DATE_PARUTION,
+    T1.DATE_PARUTION_PRECEDENTE,
+    T1.DATE_DEBUT_SEMAINE,
+    T1.DATE_FIN_SEMAINE,
+    T1.COMPTE_DATE_CREATION,
+    T1.COMPTE_DATE_ACTIVATION                                                                                                                   AS DATE_ACTIVATION_COMPTE,
+    CASE WHEN COMPTE_DATE_ACTIVATION IS NULL THEN 0 ELSE 1 END                                                                                  AS FLG_COMPTE_ACTIVE,
+    CASE WHEN T1.COMPTE_DATE_CREATION <= T1.DATE_DEBUT_SEMAINE THEN 1 ELSE 0 END                                                                     AS FLG_COMPTE,
+    CASE WHEN T1.COMPTE_DATE_CREATION <= T1.DATE_DEBUT_SEMAINE AND T1.COMPTE_DATE_CREATION > DATE_DEBUT_SEMAINE_PRECEDENTE THEN 1 ELSE 0 END              AS FLG_NOUVEAU_COMPTE,
     
-from(
-    select 
-        u.compte_id_utilisateur,
-        u.compte_code_client,
-        cal.no_parution,
-        cal.date_parution,
-        cal.date_parution_precedente,
-        cal.date_debut_semaine,
-        cal.date_fin_semaine,
-        cal.mois_annee_parution,
-        u.compte_date_activation,
-        u.compte_date_creation,
-        u.date_debut_abonnement, -- new
-        u.date_debut_abonnement_famille,
-        u.date_debut_optin_nl,
-        u.date_debut_optin_marque,
-        u.type_abo_simplifie,
-        u.flg_acquisition_aboweb,
-        u.nbr_comptes_invites_abonnement_famille,
-        case when af.compte_id_utilisateur_enfant is not null then 1 else 0 end as flg_compte_enfant_abonne_famille,
-        af.compte_id_utilisateur as compte_id_utilisateur_parent,
-        u.flg_abonne,
-        max(case when date_debut_optin_marque is not null then 1 else 0 end) as flg_optin_marque,
-        max(case when nb_nl_optin >= 1 then 1 else 0 end) as flg_optin_nl   
+    T1.FLG_ABONNE,
+    CASE WHEN (T1.DATE_DEBUT_ABONNEMENT IS NOT NULL AND T1.DATE_DEBUT_ABONNEMENT > DATE_DEBUT_SEMAINE_PRECEDENTE)        
+         OR (FLG_ACQUISITION_ABOWEB = 1 AND T1.DATE_DEBUT_SEMAINE > DATE_DEBUT_SEMAINE_PRECEDENTE) THEN 1 ELSE 0 END                                      AS FLG_NOUVEL_ABONNE,
+                
+    CASE WHEN T1.DATE_DEBUT_ABONNEMENT_FAMILLE IS NOT NULL THEN 1 ELSE 0 END                                                                    AS FLG_ABONNE_FAMILLE,
+    CASE WHEN T1.DATE_DEBUT_ABONNEMENT_FAMILLE IS NOT NULL AND T1.DATE_DEBUT_ABONNEMENT_FAMILLE > DATE_DEBUT_SEMAINE_PRECEDENTE THEN 1 ELSE 0 END    AS FLG_NOUVEL_ABONNE_FAMILLE,
+    CASE WHEN FLG_ABONNE_FAMILLE = 1 THEN 1 ELSE 0 END                                                                                          AS FLG_COMPTE_PRINCIPAL_ABONNE_FAMILLE,
+    T1.FLG_COMPTE_ENFANT_ABONNE_FAMILLE,
+    T1.NBR_COMPTES_INVITES_ABONNEMENT_FAMILLE,
+    T1.COMPTE_ID_UTILISATEUR_PARENT,
+    
+-- >> Opt-ins <<--    
+    T1.FLG_OPTIN_NL,
+    CASE WHEN T1.DATE_DEBUT_OPTIN_NL IS NOT NULL AND T1.DATE_DEBUT_OPTIN_NL > DATE_DEBUT_SEMAINE_PRECEDENTE THEN 1 ELSE 0 END                        AS FLG_NOUVEL_OPTIN_NL,
+    T1.FLG_OPTIN_MARQUE,
+    CASE WHEN T1.DATE_DEBUT_OPTIN_MARQUE IS NOT NULL AND T1.DATE_DEBUT_OPTIN_MARQUE > DATE_DEBUT_SEMAINE_PRECEDENTE THEN 1 ELSE 0 END                AS FLG_NOUVEL_OPTIN_MARQUE,
+
+-- >> App <<--    
+    CASE WHEN APP.DATE_PREM_VISITE_APP <= T1.DATE_DEBUT_SEMAINE THEN 1 ELSE 0 END                                                                    AS FLG_PORTEUR_APP,
+    CASE WHEN APP.DATE_PREM_VISITE_APP <= T1.DATE_DEBUT_SEMAINE AND APP.DATE_PREM_VISITE_APP > DATE_DEBUT_SEMAINE_PRECEDENTE THEN 1 ELSE 0 END            AS FLG_NOUVEAU_PORTEUR_APP,
+   
+    CASE WHEN APP.NBRE_VISITES_PAR_JOUR_GLOBAL IS NULL THEN 0
+         WHEN APP.NBRE_VISITES_PAR_JOUR_GLOBAL > 0 THEN 1
+         ELSE 0 END                                                                                                                             AS FLG_UTILISATEUR_ACTIF_GLOBAL,
+   
+    CASE WHEN APP.NBRE_VISITES_PAR_JOUR_SITE_MOBILE IS NULL THEN 0
+         WHEN APP.NBRE_VISITES_PAR_JOUR_SITE_MOBILE > 0 THEN 1
+         ELSE 0 END                                                                                                                             AS FLG_UTILISATEUR_ACTIF_SITE_MOBILE,
+    
+    CASE WHEN APP.NBRE_VISITES_PAR_JOUR_APP IS NULL THEN 0
+         WHEN APP.NBRE_VISITES_PAR_JOUR_APP > 0 THEN 1
+         ELSE 0 END                                                                                                                             AS FLG_UTILISATEUR_ACTIF_APP,
+   
+    CASE WHEN APP.NBRE_VISITES_PAR_JOUR_DESKTOP IS NULL THEN 0
+         WHEN APP.NBRE_VISITES_PAR_JOUR_DESKTOP > 0 THEN 1
+         ELSE 0 END                                                                                                                             AS FLG_UTILISATEUR_ACTIF_DESKTOP,
+    
+    CASE WHEN T1.FLG_ABONNE = 1 THEN 'Abonné' ELSE 'Hors abonné' END                                                                            AS SEG_ABONNE,
+    
+    CASE WHEN T1.FLG_ABONNE = 1 AND T1.TYPE_ABO_SIMPLIFIE = 'INT' THEN 'Abonné intégral'
+         WHEN T1.FLG_ABONNE = 1 AND T1.TYPE_ABO_SIMPLIFIE = 'NUM' AND T1.COMPTE_CODE_CLIENT IS NOT NULL THEN 'Abonné numérique ABOWEB'
+         --WHEN T1.FLG_ABONNE = 1 AND T1.TYPE_ABO_SIMPLIFIE IS NULL AND T1.COMPTE_CODE_CLIENT IS NOT NULL THEN 'Abonné ?'
+         WHEN T1.FLG_ABONNE = 1 THEN 'Abonné numérique autre'
+         WHEN T1.FLG_ABONNE = 0 THEN 'Non abonné'
+         ELSE 'Anonyme' END                                                                                                                     AS SOUS_SEG_ABONNE,
+    
+    T1.TYPE_ABO_SIMPLIFIE
+    
+FROM(
+    SELECT 
+    U.COMPTE_ID_UTILISATEUR,
+    U.COMPTE_CODE_CLIENT,
+    CAL.NO_PARUTION,
+    CAL.DATE_PARUTION,
+    CAL.DATE_PARUTION_PRECEDENTE,
+    CAL.DATE_DEBUT_SEMAINE_PRECEDENTE,
+    CAL.DATE_DEBUT_SEMAINE,
+    CAL.DATE_FIN_SEMAINE,
+    CAL.MOIS_ANNEE_PARUTION,
+    U.COMPTE_DATE_ACTIVATION,
+    U.COMPTE_DATE_CREATION,
+    U.DATE_DEBUT_ABONNEMENT, 
+    U.DATE_DEBUT_ABONNEMENT_FAMILLE,
+    U.DATE_DEBUT_OPTIN_NL,
+    U.DATE_DEBUT_OPTIN_MARQUE,
+    U.TYPE_ABO_SIMPLIFIE,
+    U.FLG_ACQUISITION_ABOWEB,
+    U.NBR_COMPTES_INVITES_ABONNEMENT_FAMILLE,
+    CASE WHEN AF.COMPTE_ID_UTILISATEUR_ENFANT IS NOT NULL THEN 1 ELSE 0 END         AS FLG_COMPTE_ENFANT_ABONNE_FAMILLE,
+    AF.COMPTE_ID_UTILISATEUR AS COMPTE_ID_UTILISATEUR_PARENT,
+    U.FLG_ABONNE,
+    MAX(CASE WHEN DATE_DEBUT_OPTIN_MARQUE IS NOT NULL THEN 1 ELSE 0 END)            AS FLG_OPTIN_MARQUE,
+    MAX(CASE WHEN NB_NL_OPTIN >= 1 THEN 1 ELSE 0 END)                               AS FLG_OPTIN_NL   
         
-    from cte_utilisateur_360 u
-    left join datatables_prod.patrimoine_classe1.v_calendrier_parutions cal on u.no_parution = cal.no_parution and cal.flg_hors_serie = 0
-    left join DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_UTILISATEUR_PARENT_ENFANTS af on af.compte_id_utilisateur_enfant = u.compte_id_utilisateur
-    group by all
-) t1
-left join DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_ACTIVITE_UTILISATEUR app on t1.compte_id_utilisateur::string = app.id_utilisateur::string and t1.no_parution = app.no_parution
+    FROM CTE_UTILISATEUR_360 U
+    LEFT JOIN DATATABLES_PROD.PATRIMOINE_CLASSE1.V_CALENDRIER_PARUTIONS CAL ON U.NO_PARUTION = CAL.NO_PARUTION AND CAL.FLG_HORS_SERIE = 0
+    LEFT JOIN DATATABLES_PROD.PATRIMOINE_CLASSE1.DT_UTILISATEUR_PARENT_ENFANTS AF ON AF.COMPTE_ID_UTILISATEUR_ENFANT = U.COMPTE_ID_UTILISATEUR
+    --WHERE U.COMPTE_ID_UTILISATEUR = 5130632
+    GROUP BY ALL
+) T1
+LEFT JOIN DATATABLES_PROD.PATRIMOINE_CLASSE2.DT_ACTIVITE_UTILISATEUR APP ON T1.COMPTE_ID_UTILISATEUR::STRING = APP.ID_UTILISATEUR::STRING AND T1.NO_PARUTION = APP.NO_PARUTION
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- >> EMBASEMENT FIN << --
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ;
